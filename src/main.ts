@@ -1,17 +1,13 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { WinstonModule } from 'nest-winston';
-import { winstonConfig } from 'src/configs/logger.config';
-import { TransformInterceptor } from 'src/common/interceptors/transform.interceptor';
-import { HttpExceptionFilter } from 'src/common/filter/http-exception.filter';
-import helmet from 'helmet';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'; // Đảm bảo import này
+import { WinstonModule } from 'nest-winston'; // Từ Winston setup
+import { winstonConfig } from './configs/logger.config'; // Từ Winston
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
-    logger: WinstonModule.createLogger(winstonConfig),
+    logger: WinstonModule.createLogger(winstonConfig), // Từ commit 2
   });
 
   app.use(helmet());
