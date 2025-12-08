@@ -12,8 +12,6 @@ async function bootstrap() {
 
   app.use(helmet());
   app.setGlobalPrefix('api');
-  app.useGlobalFilters(new HttpExceptionFilter());
-  app.useGlobalInterceptors(new TransformInterceptor());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -44,10 +42,8 @@ async function bootstrap() {
   });
 
   app.enableCors({
-    origin:
-      process.env.NODE_ENV === 'production' ? 'https://localhost:3000' : true,
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
+    origin: true, // Sẽ refine ở bước sau
   });
 
   await app.listen(process.env.PORT || 8080);
