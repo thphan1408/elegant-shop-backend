@@ -11,8 +11,8 @@ import { PrismaModule } from './prisma/prisma.module';
   imports: [
     ThrottlerModule.forRoot([
       {
-        ttl: 60000, // 1 minute
-        limit: 100, // limit each IP to 100 requests per ttl
+        ttl: 60000,
+        limit: 100,
       },
     ]),
     WinstonModule.forRoot(winstonConfig),

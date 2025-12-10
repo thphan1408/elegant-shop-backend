@@ -6,12 +6,14 @@ import { WinstonModule } from 'nest-winston'; // Từ Winston setup
 import { winstonConfig } from './configs/logger.config'; // Từ Winston
 import { TransformInterceptor } from 'src/common/interceptors/transform.interceptor';
 import { HttpExceptionFilter } from 'src/common/filters/http-exception.filter';
+import helmet from 'helmet';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: WinstonModule.createLogger(winstonConfig), // Từ commit 2
   });
 
+  app.use(helmet());
   app.setGlobalPrefix('api');
   app.useGlobalInterceptors(new TransformInterceptor());
   app.useGlobalFilters(new HttpExceptionFilter());
