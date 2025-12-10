@@ -17,7 +17,7 @@ import { PrismaModule } from './prisma/prisma.module';
     ]),
     WinstonModule.forRoot(winstonConfig),
     CustomConfigModule,
-    PrismaModule,
+    PrismaModule
   ],
   controllers: [AppController],
   providers: [AppService],
