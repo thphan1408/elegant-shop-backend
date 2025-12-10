@@ -4,14 +4,17 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'; // Đảm bảo import này
 import { WinstonModule } from 'nest-winston'; // Từ Winston setup
 import { winstonConfig } from './configs/logger.config'; // Từ Winston
+import { TransformInterceptor } from 'src/common/interceptors/transform.interceptor';
+import { HttpExceptionFilter } from 'src/common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: WinstonModule.createLogger(winstonConfig), // Từ commit 2
   });
 
-  app.use(helmet());
   app.setGlobalPrefix('api');
+  app.useGlobalInterceptors(new TransformInterceptor());
+  app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
