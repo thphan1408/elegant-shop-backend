@@ -6,6 +6,7 @@ import { winstonConfig } from 'src/configs/logger.config';
 import { CustomConfigModule } from './configs/config.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
+import { ProductModule } from './product/product.module';
 
 @Module({
   imports: [
@@ -17,7 +18,8 @@ import { PrismaModule } from './prisma/prisma.module';
     ]),
     WinstonModule.forRoot(winstonConfig),
     CustomConfigModule,
-    PrismaModule
+    PrismaModule,
+    ProductModule
   ],
   controllers: [AppController],
   providers: [AppService],
