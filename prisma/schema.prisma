@@ -1,8 +1,88 @@
+datasource db {
+  provider = "postgresql"
+}
+
 generator client {
   provider   = "prisma-client-js"
   engineType = "client"
 }
 
-datasource db {
-  provider = "postgresql"
+enum ProductStatus {
+  NEW
+  HOT
+  NONE // For null in mock
+}
+
+model Product {
+  id               String         @id @default(uuid())
+  name             String
+  slug             String?        @unique // Unique index auto cho SEO/routing fast
+  status           ProductStatus? @default(NONE)
+  discount         Int? // Percentage, null if no discount
+  category         String
+  measurement      String // e.g., "10x20 cm"
+  description      String
+  stars_evaluation Float // e.g., 4.5 for average (fixed typo from evaluate)
+  rating_count     Int            @default(1) // Non-negative
+  brand            String?
+  material         String?
+  weight           Float? // in kg, null if N/A
+  warranty         String? // e.g., "2 years", null if N/A
+  tags             String[]       @default([]) // Array of tags for search/filtering
+  images           String[]       @default([]) // Array of image URLs (product-level defaults)
+  meta_title       String?
+  meta_description String?
+  is_featured      Boolean        @default(false)
+  is_active        Boolean        @default(true)
+  views_count      Int            @default(0) // Added: For popularity tracking (Figma Admin analytics)
+  publish_date     DateTime? // Added: For scheduled publishing (Admin draft)
+  created_at       DateTime       @default(now())
+  updated_at       DateTime       @updatedAt
+
+  variants        ProductVariant[]
+  reviews         Review[]
+  relatedProducts Product[]        @relation("RelatedProducts")
+  relatedTo       Product[]        @relation("RelatedProducts")
+
+  @@index([category])
+  @@index([brand])
+  @@index([is_featured, is_active(sort: Desc)])
+  @@index([name])
+}
+
+model ProductVariant {
+  id         String   @id @default(uuid())
+  productId  String
+  color      String
+  colorHex   String? // e.g., "#FF0000" for swatch
+  image      String // Main image URL
+  images     String[] @default([]) // Gallery URLs array
+  sku        String   @unique // Unique global SKU for inventory
+  quantity   Int      @default(0) // Stock, >=0, trigger low-stock alert sau
+  price      Float
+  price_sale Float?
+  size       String? // e.g., "M"
+  material   String? // Override product material if variant-specific
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade) // Cascade delete variants khi delete product (clean DB, chống orphan attack)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@unique([productId, color, size]) // Constraint: No duplicate variant combo (e.g., Red-M)
+  @@index([productId]) // Tối ưu fetch variants per product
+  @@index([sku]) // Fast lookup by SKU (order fulfillment)
+}
+
+model Review {
+  id         String   @id @default(uuid())
+  productId  String
+  userId     String? // Relation to User model sau (auth module)
+  rating     Int // 1-5 stars
+  comment    String?
+  created_at DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade) // Cascade delete reviews nếu product gone (bảo mật: Xóa data cũ)
+
+  @@index([productId]) // Tối ưu aggregate ratings per product
 }
