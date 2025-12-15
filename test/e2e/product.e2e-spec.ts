@@ -31,10 +31,14 @@ describe('Product (e2e)', () => {
       .expect(200)
       .expect((res) => {
         expect(res.body).toMatchObject({
-          data: [],
-          total: 0,
-          page: 1,
-          limit: 10,
+          statusCode: 200,
+          message: 'Success',
+          data: {
+            data: [],
+            total: 0,
+            page: 1,
+            limit: 10,
+          },
         });
       });
   });
@@ -62,21 +66,25 @@ describe('Product (e2e)', () => {
       .expect(201);
 
     expect(response.body).toMatchObject({
-      name: 'Test Product',
-      slug: 'test-product',
-      category: 'Electronics',
-      variants: expect.arrayContaining([
-        expect.objectContaining({
-          color: 'Red',
-          sku: 'SKU001',
-          price: 100,
-        }),
-      ]),
+      statusCode: 201,
+      message: 'Success',
+      data: {
+        name: 'Test Product',
+        slug: 'test-product',
+        category: 'Electronics',
+        variants: expect.arrayContaining([
+          expect.objectContaining({
+            color: 'Red',
+            sku: 'SKU001',
+            price: 100,
+          }),
+        ]),
+      },
     });
 
     // Verify in database
     const product = await prisma.product.findUnique({
-      where: { id: response.body.id },
+      where: { id: response.body.data.id },
       include: { variants: true },
     });
     expect(product).toBeTruthy();
@@ -110,13 +118,17 @@ describe('Product (e2e)', () => {
       .expect(200);
 
     expect(response.body).toMatchObject({
-      id: product.id,
-      name: 'Get Test Product',
-      variants: expect.arrayContaining([
-        expect.objectContaining({ color: 'Blue' }),
-      ]),
+      statusCode: 200,
+      message: 'Success',
+      data: {
+        id: product.id,
+        name: 'Get Test Product',
+        variants: expect.arrayContaining([
+          expect.objectContaining({ color: 'Blue' }),
+        ]),
+      },
     });
-    expect(response.body.views_count).toBeGreaterThan(0); // Should increment
+    expect(response.body.data.views_count).toBeGreaterThan(0); // Should increment
   });
 
   it('/api/products/:id (GET) should return 404 for non-existent product', () => {
@@ -157,9 +169,13 @@ describe('Product (e2e)', () => {
       .expect(200);
 
     expect(response.body).toMatchObject({
-      name: 'Updated Product',
-      slug: 'updated-product', // Slug should auto-update
-      description: 'Updated description',
+      statusCode: 200,
+      message: 'Success',
+      data: {
+        name: 'Updated Product',
+        slug: 'updated-product', // Slug should auto-update
+        description: 'Updated description',
+      },
     });
   });
 
@@ -191,7 +207,7 @@ describe('Product (e2e)', () => {
     const response = await request(app.getHttpServer())
       .get('/api/products')
       .expect(200);
-    expect(response.body.data).not.toContainEqual(
+    expect(response.body.data.data).not.toContainEqual(
       expect.objectContaining({ id: product.id }),
     );
   });
@@ -222,9 +238,9 @@ describe('Product (e2e)', () => {
       .get('/api/products?category=Electronics')
       .expect(200);
 
-    expect(response.body.data.every((p) => p.category === 'Electronics')).toBe(
-      true,
-    );
+    expect(
+      response.body.data.data.every((p) => p.category === 'Electronics'),
+    ).toBe(true);
   });
 
   it('/api/products (GET) should search in name and description', async () => {
@@ -243,9 +259,9 @@ describe('Product (e2e)', () => {
       .get('/api/products?search=laptop')
       .expect(200);
 
-    expect(response.body.data.length).toBeGreaterThan(0);
+    expect(response.body.data.data.length).toBeGreaterThan(0);
     expect(
-      response.body.data.some(
+      response.body.data.data.some(
         (p) =>
           p.name.toLowerCase().includes('laptop') ||
           p.description.toLowerCase().includes('laptop'),
