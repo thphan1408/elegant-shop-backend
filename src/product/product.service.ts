@@ -30,24 +30,40 @@ export class ProductService {
     const page = query.page || 1;
     const limit = query.limit || 10;
     const skip = (page - 1) * limit;
-    const where = {
-      category: query.category,
-      brand: query.brand,
-      is_featured: query.is_featured,
+    const where: {
+      category?: string;
+      brand?: string;
+      is_featured?: boolean;
+      is_active: boolean;
+      OR?: Array<
+        { name: { contains: string } } | { description: { contains: string } }
+      >;
+    } = {
       is_active: true,
-      ...(query.search && {
-        OR: [
-          { name: { contains: query.search } },
-          { description: { contains: query.search } },
-        ],
-      }),
     };
+
+    // Only include filters if they are defined (not undefined)
+    if (query.category !== undefined) {
+      where.category = query.category;
+    }
+    if (query.brand !== undefined) {
+      where.brand = query.brand;
+    }
+    if (query.is_featured !== undefined) {
+      where.is_featured = query.is_featured;
+    }
+    if (query.search) {
+      where.OR = [
+        { name: { contains: query.search } },
+        { description: { contains: query.search } },
+      ];
+    }
 
     const [products, total] = await Promise.all([
       this.prismaService.product.findMany({
         where,
         skip,
-        take: query.limit,
+        take: limit,
         orderBy: { updated_at: 'desc' },
         include: {
           variants: true,
@@ -76,7 +92,7 @@ export class ProductService {
       };
     });
 
-    return { data: enhanced, total, page: query.page, limit: query.limit };
+    return { data: enhanced, total, page, limit };
   }
 
   async findOne(id: string) {

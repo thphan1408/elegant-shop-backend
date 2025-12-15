@@ -19,7 +19,9 @@ export class QueryProductDto {
 
   @IsBoolean()
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(({ value }) =>
+    value === undefined ? undefined : value === 'true' || value === true,
+  )
   is_featured?: boolean;
 
   @Type(() => Number)
