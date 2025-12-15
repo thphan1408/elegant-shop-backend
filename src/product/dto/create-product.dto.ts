@@ -8,9 +8,11 @@ import {
   IsNumber,
   ValidateNested,
   IsEnum,
+  ArrayNotEmpty,
+  Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ProductStatus } from '@prisma/client'; 
+import { ProductStatus } from '@prisma/client';
 
 class CreateVariantDto {
   @IsString()
@@ -30,13 +32,16 @@ class CreateVariantDto {
   @IsString()
   sku: string;
 
-  @IsPositive()
+  @IsInt()
+  @Min(0)
   quantity: number;
 
   @IsNumber()
+  @Min(0)
   price: number;
 
   @IsNumber()
+  @Min(0)
   @IsOptional()
   price_sale?: number;
 
@@ -114,6 +119,7 @@ export class CreateProductDto {
   is_active?: boolean;
 
   @IsArray()
+  @ArrayNotEmpty()
   @ValidateNested({ each: true })
   @Type(() => CreateVariantDto)
   variants: CreateVariantDto[];
