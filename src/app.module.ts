@@ -19,7 +19,7 @@ import { ProductModule } from './product/product.module';
     WinstonModule.forRoot(winstonConfig),
     CustomConfigModule,
     PrismaModule,
-    ProductModule
+    ProductModule,
   ],
   controllers: [AppController],
   providers: [AppService],
