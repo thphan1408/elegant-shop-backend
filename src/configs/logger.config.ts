@@ -1,4 +1,3 @@
-import { level, transport } from 'winston';
 import * as winston from 'winston';
 import { utilities as nestWinstonModuleUtilities } from 'nest-winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
