@@ -45,4 +45,9 @@ export class ProductController {
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.productService.removeProduct(id);
   }
+
+  @Post('cleanup-expired-sales')
+  cleanupExpiredSales() {
+    return this.productService.cleanupExpiredSales();
+  }
 }

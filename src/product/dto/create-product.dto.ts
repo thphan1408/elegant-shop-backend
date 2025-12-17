@@ -10,6 +10,7 @@ import {
   IsEnum,
   ArrayNotEmpty,
   Min,
+  IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ProductStatus } from '@prisma/client';
@@ -117,6 +118,14 @@ export class CreateProductDto {
   @IsBoolean()
   @IsOptional()
   is_active?: boolean;
+
+  @IsDateString()
+  @IsOptional()
+  sale_start_date?: string;
+
+  @IsDateString()
+  @IsOptional()
+  sale_end_date?: string;
 
   @IsArray()
   @ArrayNotEmpty()

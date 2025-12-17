@@ -26,7 +26,73 @@ export class ProductService {
     });
   }
 
+  /**
+   * Cleanup expired sales: Remove price_sale from variants when sale_end_date has passed
+   * This method should be called periodically or on-demand
+   */
+  async cleanupExpiredSales() {
+    const now = new Date();
+
+    // Find all products with expired sales
+    const expiredProducts = await this.prismaService.product.findMany({
+      where: {
+        sale_end_date: {
+          lte: now, // sale_end_date <= now (expired)
+          not: null,
+        },
+      },
+      include: {
+        variants: {
+          where: {
+            price_sale: {
+              not: null,
+            },
+          },
+        },
+      },
+    });
+
+    // Remove price_sale from all variants of expired products
+    for (const product of expiredProducts) {
+      await this.prismaService.productVariant.updateMany({
+        where: {
+          productId: product.id,
+          price_sale: { not: null },
+        },
+        data: {
+          price_sale: null,
+        },
+      });
+    }
+
+    // Clear sale dates from products
+    await this.prismaService.product.updateMany({
+      where: {
+        sale_end_date: {
+          lte: now,
+          not: null,
+        },
+      },
+      data: {
+        sale_start_date: null,
+        sale_end_date: null,
+      },
+    });
+
+    return {
+      cleanedProducts: expiredProducts.length,
+      message: `Cleaned up ${expiredProducts.length} expired sales`,
+    };
+  }
+
   async findAll(query: QueryProductDto) {
+    // Cleanup expired sales in background (non-blocking for better performance)
+    // Note: For production, consider using a scheduled task (cron job) instead
+    this.cleanupExpiredSales().catch((error) => {
+      // Log error but don't block the request
+      console.error('Error cleaning up expired sales:', error);
+    });
+
     const page = query.page || 1;
     const limit = query.limit || 10;
     const skip = (page - 1) * limit;
@@ -78,6 +144,8 @@ export class ProductService {
     ]);
 
     // Optimize: Calculate average rating more efficiently
+    // Filter out expired sales on variants in response
+    const now = new Date();
     const enhanced = products.map((product) => {
       const reviewCount = product.reviews.length;
       const avgRating = reviewCount
@@ -85,8 +153,23 @@ export class ProductService {
           reviewCount
         : 0;
 
+      // Remove price_sale from variants if sale has expired (for display)
+      // Actual database cleanup happens in background or scheduled task
+      const isSaleExpired =
+        product.sale_end_date && new Date(product.sale_end_date) < now;
+      const variants = product.variants.map((variant) => {
+        if (isSaleExpired && variant.price_sale !== null) {
+          return { ...variant, price_sale: null };
+        }
+        return variant;
+      });
+
       return {
         ...product,
+        variants,
+        // Clear sale dates in response if expired
+        sale_start_date: isSaleExpired ? null : product.sale_start_date,
+        sale_end_date: isSaleExpired ? null : product.sale_end_date,
         stars_evaluation: Math.round(avgRating * 10) / 10, // Round to 1 decimal
         rating_count: reviewCount,
       };
@@ -102,6 +185,52 @@ export class ProductService {
     });
 
     if (!product) throw new NotFoundException('Product not found');
+
+    // Check if sale has expired and filter in response
+    // Actual database cleanup happens in background or scheduled task
+    const now = new Date();
+    const isSaleExpired =
+      product.sale_end_date && new Date(product.sale_end_date) < now;
+
+    if (isSaleExpired) {
+      // Remove price_sale from variants in response (filter expired sales)
+      product.variants = product.variants.map((variant) => ({
+        ...variant,
+        price_sale: null,
+      }));
+      product.sale_start_date = null;
+      product.sale_end_date = null;
+
+      // Trigger background cleanup for this product (non-blocking)
+      this.prismaService.productVariant
+        .updateMany({
+          where: {
+            productId: id,
+            price_sale: { not: null },
+          },
+          data: {
+            price_sale: null,
+          },
+        })
+        .catch((error) => {
+          console.error(
+            `Error cleaning up expired sale for product ${id}:`,
+            error,
+          );
+        });
+
+      this.prismaService.product
+        .update({
+          where: { id },
+          data: {
+            sale_start_date: null,
+            sale_end_date: null,
+          },
+        })
+        .catch((error) => {
+          console.error(`Error clearing sale dates for product ${id}:`, error);
+        });
+    }
 
     // Increment views atomic (chống race attack)
     await this.prismaService.product.update({
