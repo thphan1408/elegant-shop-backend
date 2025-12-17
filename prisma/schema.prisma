@@ -36,6 +36,8 @@ model Product {
   is_active        Boolean        @default(true)
   views_count      Int            @default(0) // Added: For popularity tracking (Figma Admin analytics)
   publish_date     DateTime? // Added: For scheduled publishing (Admin draft)
+  sale_start_date  DateTime? // Sale start date/time for countdown timer
+  sale_end_date    DateTime? // Sale end date/time - when expired, price_sale will be removed
   created_at       DateTime       @default(now())
   updated_at       DateTime       @updatedAt
 
@@ -48,6 +50,7 @@ model Product {
   @@index([brand])
   @@index([is_featured, is_active(sort: Desc)])
   @@index([name])
+  @@index([sale_end_date]) // For querying active sales and cleanup expired sales
 }
 
 model ProductVariant {
@@ -72,6 +75,7 @@ model ProductVariant {
   @@unique([productId, color, size]) // Constraint: No duplicate variant combo (e.g., Red-M)
   @@index([productId]) // Tối ưu fetch variants per product
   @@index([sku]) // Fast lookup by SKU (order fulfillment)
+  @@index([price_sale]) // For querying products on sale
 }
 
 model Review {
