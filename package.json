@@ -22,7 +22,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json --maxWorkers=1",
     "migrate:dev": "npx prisma migrate dev --name init",
     "prisma:generate": "npx prisma generate",
-    "prisma:deploy": "npx prisma migrate deploy"
+    "prisma:deploy": "npx prisma migrate deploy",
+    "prisma:seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
