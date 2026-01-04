@@ -13,6 +13,48 @@ enum ProductStatus {
   NONE // For null in mock
 }
 
+enum ReactionType {
+  LIKE
+  DISLIKE
+}
+
+enum FAQCategory {
+  PRIVACY_POLICY // Chính sách bảo mật
+  TERMS_OF_SERVICE // Điều khoản dịch vụ
+  PRODUCT_POLICY // Chính sách sản phẩm
+  SHIPPING // Vận chuyển
+  RETURNS // Đổi trả
+  WARRANTY // Bảo hành
+  PAYMENT // Thanh toán
+  GENERAL // Câu hỏi chung
+}
+
+enum UserRole {
+  GUEST // Guest user (no login required)
+  USER // Regular customer
+  ADMIN // Administrator
+  MODERATOR // Content moderator
+}
+
+enum OrderStatus {
+  PENDING // Order placed, awaiting payment
+  PAID // Payment confirmed
+  PROCESSING // Order being prepared
+  SHIPPED // Order shipped
+  DELIVERED // Order delivered
+  CANCELLED // Order cancelled
+  REFUNDED // Order refunded
+}
+
+enum PaymentMethod {
+  CASH_ON_DELIVERY // COD
+  BANK_TRANSFER // Chuyển khoản
+  CREDIT_CARD // Thẻ tín dụng
+  E_WALLET // Ví điện tử
+  PAYPAL // PayPal
+  OTHER // Khác
+}
+
 model Product {
   id               String         @id @default(uuid())
   name             String
@@ -43,6 +85,7 @@ model Product {
 
   variants        ProductVariant[]
   reviews         Review[]
+  faqs            FAQ[]
   relatedProducts Product[]        @relation("RelatedProducts")
   relatedTo       Product[]        @relation("RelatedProducts")
 
@@ -72,21 +115,190 @@ model ProductVariant {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
+  // Relations
+  orderItems OrderItem[]
+
   @@unique([productId, color, size]) // Constraint: No duplicate variant combo (e.g., Red-M)
   @@index([productId]) // Tối ưu fetch variants per product
   @@index([sku]) // Fast lookup by SKU (order fulfillment)
   @@index([price_sale]) // For querying products on sale
 }
 
+model User {
+  id         String    @id @default(uuid())
+  email      String    @unique
+  userName   String    @unique // Username for login
+  password   String // Hashed password (bcrypt)
+  name       String? // Full name (yourName)
+  role       UserRole  @default(USER)
+  is_active  Boolean   @default(true)
+  avatar     String? // URL to avatar image (Cloudinary)
+  phone      String?
+  address    String?
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  last_login DateTime? // Track last login time
+
+  // Relations
+  reviews         Review[]
+  reviewReactions ReviewReaction[]
+  reviewReplies   ReviewReply[]
+  orders          Order[] // User orders
+
+  @@index([email]) // Fast lookup by email (login)
+  @@index([userName]) // Fast lookup by username (login)
+  @@index([role]) // Fast lookup by role (admin queries)
+  @@index([is_active]) // Fast lookup active users
+}
+
+model Order {
+  id            String        @id @default(uuid())
+  orderNumber   String        @unique // Unique order number for tracking (e.g., ORD-20240103-001)
+  userId        String? // Nullable: Guest orders don't have userId, authenticated users have userId
+  status        OrderStatus   @default(PENDING)
+  paymentMethod PaymentMethod
+  paymentStatus Boolean       @default(false) // true if paid
+
+  // Guest customer info (if userId is null)
+  guestEmail String? // Guest email
+  guestName  String? // Guest name
+  guestPhone String? // Guest phone
+
+  // Shipping address
+  shippingName    String
+  shippingPhone   String
+  shippingAddress String
+  shippingCity    String?
+  shippingState   String?
+  shippingZip     String?
+  shippingCountry String? @default("Vietnam")
+
+  // Pricing
+  subtotal    Float // Sum of items before tax/shipping
+  tax         Float @default(0)
+  shippingFee Float @default(0)
+  discount    Float @default(0) // Discount amount
+  total       Float // Final total (subtotal + tax + shipping - discount)
+
+  // Additional info
+  notes          String? // Customer notes
+  trackingNumber String? // Shipping tracking number
+
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+  paidAt      DateTime? // When payment was confirmed
+  shippedAt   DateTime? // When order was shipped
+  deliveredAt DateTime? // When order was delivered
+
+  // Relations
+  user  User?       @relation(fields: [userId], references: [id], onDelete: SetNull) // Set null if user deleted, preserve order
+  items OrderItem[]
+
+  @@index([userId]) // Fast lookup orders by user
+  @@index([orderNumber]) // Fast lookup by order number
+  @@index([status]) // Fast lookup by status
+  @@index([guestEmail]) // Fast lookup guest orders by email
+  @@index([created_at(sort: Desc)]) // For sorting by newest
+  @@index([status, created_at(sort: Desc)]) // Composite index for common queries
+}
+
+model OrderItem {
+  id           String  @id @default(uuid())
+  orderId      String
+  variantId    String
+  productId    String // Denormalized for faster queries
+  productName  String // Denormalized: product name at time of order
+  variantColor String // Denormalized: variant color at time of order
+  variantSize  String? // Denormalized: variant size at time of order
+  sku          String // Denormalized: SKU at time of order
+  quantity     Int     @default(1)
+  unitPrice    Float // Price per unit at time of order (may differ from current price)
+  totalPrice   Float // quantity * unitPrice
+
+  order   Order          @relation(fields: [orderId], references: [id], onDelete: Cascade) // Cascade delete items when order deleted
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict) // Prevent deletion if variant used in order
+
+  @@index([orderId]) // Fast lookup items by order
+  @@index([variantId]) // Fast lookup orders containing variant
+  @@index([productId]) // Fast lookup orders by product
+}
+
 model Review {
   id         String   @id @default(uuid())
   productId  String
-  userId     String? // Relation to User model sau (auth module)
+  userId     String? // Relation to User model. Nullable cho anonymous reviews
   rating     Int // 1-5 stars
   comment    String?
   created_at DateTime @default(now())
+  updated_at DateTime @updatedAt // Track when review was updated
 
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade) // Cascade delete reviews nếu product gone (bảo mật: Xóa data cũ)
+  product   Product          @relation(fields: [productId], references: [id], onDelete: Cascade) // Cascade delete reviews nếu product gone (bảo mật: Xóa data cũ)
+  user      User?            @relation(fields: [userId], references: [id], onDelete: SetNull) // Set null khi user bị xóa (preserve reviews)
+  reactions ReviewReaction[] // Reactions to this review (like/dislike)
+  replies   ReviewReply[]    @relation("ReviewReplies") // Direct replies to this review
 
+  // Unique constraint: 1 user chỉ có 1 review cho 1 product (PostgreSQL: NULL values không conflict)
+  @@unique([productId, userId])
   @@index([productId]) // Tối ưu aggregate ratings per product
+  @@index([userId]) // Fast lookup reviews by user
+  @@index([created_at(sort: Desc)]) // For sorting by newest
+}
+
+model ReviewReaction {
+  id         String       @id @default(uuid())
+  reviewId   String
+  userId     String? // Nullable cho anonymous reactions
+  reaction   ReactionType @default(LIKE)
+  created_at DateTime     @default(now())
+  updated_at DateTime     @updatedAt
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // 1 user chỉ có 1 reaction cho 1 review (có thể change reaction type)
+  @@unique([reviewId, userId])
+  @@index([reviewId]) // Fast lookup reactions by review
+  @@index([userId]) // Fast lookup reactions by user
+}
+
+model ReviewReply {
+  id         String   @id @default(uuid())
+  reviewId   String // Parent review
+  parentId   String? // Null nếu là direct reply, có giá trị nếu là reply của reply (nested)
+  userId     String? // Nullable cho anonymous replies
+  content    String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  review  Review        @relation("ReviewReplies", fields: [reviewId], references: [id], onDelete: Cascade)
+  user    User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  parent  ReviewReply?  @relation("NestedReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies ReviewReply[] @relation("NestedReplies") // Nested replies
+
+  @@index([reviewId]) // Fast lookup replies by review
+  @@index([parentId]) // Fast lookup nested replies
+  @@index([userId]) // Fast lookup replies by user
+  @@index([created_at(sort: Desc)]) // For sorting by newest
+}
+
+model FAQ {
+  id          String      @id @default(uuid())
+  question    String // Câu hỏi
+  answer      String // Câu trả lời (có thể là HTML/Markdown với embedded images)
+  category    FAQCategory @default(GENERAL)
+  productId   String? // Null nếu là global FAQ, có giá trị nếu là FAQ cho sản phẩm cụ thể
+  images      String[]    @default([]) // Array of Cloudinary image URLs
+  attachments String[]    @default([]) // Array of Cloudinary file URLs (PDF, DOC, etc.)
+  order       Int         @default(0) // Thứ tự hiển thị (để admin sắp xếp)
+  is_active   Boolean     @default(true)
+  created_at  DateTime    @default(now())
+  updated_at  DateTime    @updatedAt
+
+  product Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([category])
+  @@index([productId])
+  @@index([is_active])
+  @@index([order])
+  @@index([category, is_active, order]) // Composite index for common queries
 }
