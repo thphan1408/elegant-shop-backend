@@ -16,6 +16,10 @@ export class PrismaService
   private readonly logger = new Logger(PrismaService.name);
   private pool: Pool;
 
+  /**
+   * Initialize PrismaService with PostgreSQL adapter and connection pooling
+   * @throws Error if DATABASE_URL is not defined
+   */
   constructor() {
     const connectionString = process.env.DATABASE_URL;
 
@@ -43,11 +47,17 @@ export class PrismaService
     });
   }
 
+  /**
+   * Connect to database when module initializes
+   */
   async onModuleInit() {
     await this.$connect();
     this.logger.log('Prisma connected to DB with adapter');
   }
 
+  /**
+   * Disconnect from database when module is destroyed
+   */
   async onModuleDestroy() {
     await this.$disconnect();
   }

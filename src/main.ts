@@ -6,6 +6,8 @@ import { WinstonModule } from 'nest-winston'; // Từ Winston setup
 import { winstonConfig } from './configs/logger.config'; // Từ Winston
 import { TransformInterceptor } from 'src/common/interceptors/transform.interceptor';
 import { HttpExceptionFilter } from 'src/common/filters/http-exception.filter';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { APP_GUARD, Reflector } from '@nestjs/core';
 import helmet from 'helmet';
 
 async function bootstrap() {
@@ -22,20 +24,24 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: false,
       transform: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+      skipMissingProperties: false,
     }),
   );
 
   const config = new DocumentBuilder()
     .setTitle('3elegant. shop API')
     .setDescription('API documentation for 3elegant. shop backend')
-    // .addBearerAuth({
-    //   type: 'http',
-    //   scheme: 'bearer',
-    //   bearerFormat: 'JWT',
-    //   in: 'header',
-    //   name: 'Authorization',
-    //   description: 'Enter your Bearer token',
-    // })
+    .addBearerAuth({
+      type: 'http',
+      scheme: 'bearer',
+      bearerFormat: 'JWT',
+      in: 'header',
+      name: 'Authorization',
+      description: 'Enter your Bearer token',
+    })
     .setVersion('1.0')
     .build();
 
