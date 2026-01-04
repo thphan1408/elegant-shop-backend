@@ -9,6 +9,12 @@ import { QueryProductDto } from 'src/product/dto/query-product.dto';
 export class ProductService {
   constructor(private readonly prismaService: PrismaService) {}
 
+  /**
+   * Create a new product with variants
+   * @param createProductDto - Product data including variants
+   * @returns Created product with variants
+   * @throws Error if transaction fails
+   */
   addProduct(createProductDto: CreateProductDto) {
     return this.prismaService.$transaction(async (tx) => {
       const product = await tx.product.create({
@@ -29,6 +35,7 @@ export class ProductService {
   /**
    * Cleanup expired sales: Remove price_sale from variants when sale_end_date has passed
    * This method should be called periodically or on-demand
+   * @returns Object with cleanedProducts count and message
    */
   async cleanupExpiredSales() {
     const now = new Date();
@@ -85,6 +92,11 @@ export class ProductService {
     };
   }
 
+  /**
+   * Get all products with pagination, filtering, and search
+   * @param query - Query parameters (page, limit, category, brand, is_featured, search)
+   * @returns Paginated list of products with calculated ratings and filtered expired sales
+   */
   async findAll(query: QueryProductDto) {
     // Cleanup expired sales in background (non-blocking for better performance)
     // Note: For production, consider using a scheduled task (cron job) instead
@@ -178,6 +190,12 @@ export class ProductService {
     return { data: enhanced, total, page, limit };
   }
 
+  /**
+   * Get a single product by ID
+   * @param id - Product ID (UUID)
+   * @returns Product with variants, reviews, and related products
+   * @throws NotFoundException if product not found or inactive
+   */
   async findOne(id: string) {
     const product = await this.prismaService.product.findUnique({
       where: { id, is_active: true }, // Bảo mật: Chỉ active
@@ -249,6 +267,13 @@ export class ProductService {
     return product;
   }
 
+  /**
+   * Update a product
+   * @param id - Product ID (UUID)
+   * @param updateProductDto - Data to update
+   * @returns Updated product with variants
+   * @throws NotFoundException if product not found
+   */
   async updateProduct(id: string, updateProductDto: UpdateProductDto) {
     // Check if product exists
     const existingProduct = await this.prismaService.product.findUnique({
@@ -281,6 +306,12 @@ export class ProductService {
     });
   }
 
+  /**
+   * Soft delete a product (set is_active to false)
+   * @param id - Product ID (UUID)
+   * @returns Updated product with is_active = false
+   * @throws NotFoundException if product not found
+   */
   async removeProduct(id: string) {
     // Check if product exists
     const existingProduct = await this.prismaService.product.findUnique({
