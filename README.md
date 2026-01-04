@@ -13,6 +13,7 @@ Backend API cho hệ thống e-commerce được xây dựng với NestJS, Prism
 - [Kiến trúc dự án](#-kiến-trúc-dự-án)
 - [Testing](#-testing)
 - [Đặc tả kỹ thuật](#-đặc-tả-kỹ-thuật)
+- [Algorithms & Data Structures](#-algorithms--data-structures)
 
 ## ✨ Tính năng nổi bật
 
@@ -34,12 +35,58 @@ Backend API cho hệ thống e-commerce được xây dựng với NestJS, Prism
 - **Filter by Featured**: Lọc sản phẩm nổi bật
 - **Pagination**: Phân trang kết quả với `page` và `limit` (mặc định: page=1, limit=10, max=100)
 
-### ⭐ Hệ thống Đánh giá (Rating System)
+### ⭐ Hệ thống Đánh giá (Review System)
 
+- **CRUD Reviews**: Tạo, đọc, cập nhật và xóa đánh giá
+- **Upsert Logic**: Mỗi user chỉ có 1 review cho mỗi sản phẩm (có thể update)
 - **Auto-calculate Rating**: Tự động tính toán điểm đánh giá trung bình (`stars_evaluation`) từ reviews
 - **Rating Count**: Đếm số lượng đánh giá cho mỗi sản phẩm
 - **Precision**: Làm tròn điểm đánh giá đến 1 chữ số thập phân
-- **Product Reviews API**: ⚠️ _Đang phát triển_ - Schema đã có sẵn, API endpoints chưa được implement
+- **Review Reactions**: Like/Dislike reviews (yêu cầu đăng nhập)
+- **Review Replies**: Trả lời đánh giá với nested structure (yêu cầu đăng nhập)
+- **Authorization**: Admin xóa tất cả, User chỉ xóa/update review của mình
+- **Count Reviews by User**: Đếm số lượng review của mỗi user
+
+### 🔐 Xác thực & Phân quyền (Authentication & Authorization)
+
+- **JWT Authentication**: Access Token + Refresh Token
+- **Register/Login**: Hỗ trợ đăng ký và đăng nhập (email hoặc username, remember me)
+- **Password Hashing**: bcrypt với salt rounds
+- **Role-based Access Control**: USER, ADMIN, MODERATOR, GUEST
+- **Public Routes**: Hỗ trợ routes public với `@Public()` decorator
+- **Current User Decorator**: Dễ dàng lấy thông tin user hiện tại
+- **Auto Admin Initialization**: Tự động tạo admin account khi app khởi động (nếu chưa có)
+- **Test Token**: Endpoint tạo access token vô hạn (100 năm) để test API với quyền cao hơn ADMIN (token log ra console, không hiển thị trong Swagger)
+
+### 🛒 Quản lý Đơn hàng (Order Management)
+
+- **Guest Checkout**: Cho phép đặt hàng mà không cần đăng nhập
+- **Authenticated Checkout**: Đặt hàng với tài khoản USER role (đã đăng nhập)
+- **Role Restrictions**: ADMIN và MODERATOR **KHÔNG THỂ** đặt hàng (chỉ xem sản phẩm để quản lý)
+- **Stock Management**: Tự động giảm stock khi đặt hàng
+- **Order Tracking**: Theo dõi trạng thái đơn hàng (PENDING, PAID, PROCESSING, SHIPPED, DELIVERED, CANCELLED, REFUNDED)
+- **Payment Methods**: Hỗ trợ nhiều phương thức thanh toán (COD, Bank Transfer, Credit Card, E-Wallet, PayPal)
+- **Public Order Tracking**: Track đơn hàng bằng order number (không cần đăng nhập)
+- **Authorization**: Users chỉ xem/update đơn hàng của mình, Admins xem/update tất cả
+
+### ❓ FAQ Module (Câu hỏi Thường gặp)
+
+- **Global FAQs**: Câu hỏi chung cho toàn bộ hệ thống
+- **Product-specific FAQs**: FAQ riêng cho từng sản phẩm
+- **FAQ Categories**: Phân loại FAQ (Privacy Policy, Terms of Service, Shipping, Returns, Warranty, Payment, etc.)
+- **File/Image Upload**: Upload hình ảnh và file lên Cloudinary
+- **Order/Display Order**: Sắp xếp thứ tự hiển thị
+- **Active/Inactive Status**: Quản lý trạng thái FAQ
+
+### 👤 Quản lý Người dùng (User Management)
+
+- **User CRUD**: Tạo, đọc, cập nhật và xóa user
+  - **Admin**: Toàn quyền (CRUD đầy đủ)
+  - **Moderator**: Có thể tạo user (USER role only), xem tất cả users, update user (limited fields), KHÔNG được xóa user
+  - **User**: Chỉ xem và update profile của chính mình
+- **User Roles**: Phân quyền theo role (USER, ADMIN, MODERATOR, GUEST)
+- **User Profile**: Quản lý thông tin người dùng
+- **Auto Admin Setup**: Tự động tạo admin account mặc định khi app khởi động lần đầu
 
 ### 🏗️ Kiến trúc & Best Practices
 
@@ -57,11 +104,17 @@ Backend API cho hệ thống e-commerce được xây dựng với NestJS, Prism
 
 ### 📊 Database Schema
 
-- **Product Model**: Thông tin sản phẩm với đầy đủ metadata (SEO, tags, images, warranty, etc.)
+- **Product Model**: Thông tin sản phẩm với đầy đủ metadata (SEO, tags, images, warranty, sale dates, etc.)
 - **ProductVariant Model**: Biến thể sản phẩm với SKU, giá, số lượng, màu sắc, kích thước
-- **Review Model**: Đánh giá sản phẩm với rating và comment
+- **Review Model**: Đánh giá sản phẩm với rating và comment (1 review/user/product)
+- **ReviewReaction Model**: Reactions (like/dislike) cho reviews
+- **ReviewReply Model**: Trả lời đánh giá với nested structure
+- **User Model**: Thông tin người dùng với roles và authentication
+- **Order Model**: Đơn hàng với trạng thái và phương thức thanh toán
+- **OrderItem Model**: Chi tiết đơn hàng (sản phẩm, số lượng, giá)
+- **FAQ Model**: Câu hỏi thường gặp (global và product-specific)
 - **Relations**: Quan hệ many-to-one và many-to-many giữa các models
-- **Constraints**: Unique constraints cho slug, SKU và variant combinations
+- **Constraints**: Unique constraints cho slug, SKU, variant combinations, user-product reviews
 
 ## 🛠️ Công nghệ sử dụng
 
@@ -149,6 +202,19 @@ PORT=8080
 
 # Security
 JWT_SECRET=your-secret-key-change-in-production
+JWT_EXPIRES_IN=1d
+JWT_REFRESH_SECRET=your-refresh-secret-key (optional)
+JWT_REFRESH_EXPIRES_IN=7d
+
+# Cloudinary (for file uploads)
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+
+# Admin Account (optional - for auto-creation on first start)
+DEFAULT_ADMIN_EMAIL=admin@elegantshop.com
+DEFAULT_ADMIN_PASSWORD=Admin@123456
+DEFAULT_ADMIN_USERNAME=admin
 ```
 
 2. Chạy migrations:
@@ -163,7 +229,23 @@ npm run migrate:dev
 npm run prisma:generate
 ```
 
-### Bước 4: Chạy dự án
+### Bước 4: Khởi động ứng dụng lần đầu
+
+Khi chạy ứng dụng lần đầu tiên, hệ thống sẽ **tự động tạo admin account** nếu các environment variables được cấu hình trong file `.env`:
+
+```env
+DEFAULT_ADMIN_EMAIL=your-admin-email@example.com
+DEFAULT_ADMIN_PASSWORD=your-secure-password
+DEFAULT_ADMIN_USERNAME=your-admin-username
+```
+
+⚠️ **Lưu ý**:
+
+- Nếu các environment variables này **không được set**, hệ thống sẽ **bỏ qua việc tạo admin account** (không có hardcode values)
+- Sau khi set env vars và khởi động app, kiểm tra console log để xem thông tin đăng nhập
+- Hãy đổi mật khẩu sau lần đăng nhập đầu tiên!
+
+### Bước 5: Chạy dự án
 
 ```bash
 # Development mode
@@ -174,16 +256,27 @@ npm run build
 npm run start:prod
 ```
 
+**Lưu ý**: Khi khởi động lần đầu, hệ thống sẽ tự động tạo admin account nếu chưa có. Xem log để lấy thông tin đăng nhập mặc định.
+
 ## ⚙️ Cấu hình
 
 ### Environment Variables
 
-| Variable       | Mô tả                                     | Mặc định    | Required |
-| -------------- | ----------------------------------------- | ----------- | -------- |
-| `DATABASE_URL` | PostgreSQL connection string              | -           | ✅       |
-| `NODE_ENV`     | Environment (development/production/test) | development | ❌       |
-| `PORT`         | Server port                               | 8080        | ❌       |
-| `JWT_SECRET`   | Secret key cho JWT (sẽ dùng sau)          | -           | ✅       |
+| Variable                 | Mô tả                                     | Mặc định    | Required |
+| ------------------------ | ----------------------------------------- | ----------- | -------- |
+| `DATABASE_URL`           | PostgreSQL connection string              | -           | ✅       |
+| `NODE_ENV`               | Environment (development/production/test) | development | ❌       |
+| `PORT`                   | Server port                               | 8080        | ❌       |
+| `JWT_SECRET`             | Secret key cho JWT                        | -           | ✅       |
+| `JWT_EXPIRES_IN`         | Access token expiration time              | 1d          | ❌       |
+| `JWT_REFRESH_SECRET`     | Refresh token secret (optional)           | JWT_SECRET  | ❌       |
+| `JWT_REFRESH_EXPIRES_IN` | Refresh token expiration time             | 7d          | ❌       |
+| `CLOUDINARY_CLOUD_NAME`  | Cloudinary cloud name                     | -           | ✅       |
+| `CLOUDINARY_API_KEY`     | Cloudinary API key                        | -           | ✅       |
+| `CLOUDINARY_API_SECRET`  | Cloudinary API secret                     | -           | ✅       |
+| `DEFAULT_ADMIN_EMAIL`    | Email cho admin account tự động tạo       | -           | ❌       |
+| `DEFAULT_ADMIN_PASSWORD` | Password cho admin account tự động tạo    | -           | ❌       |
+| `DEFAULT_ADMIN_USERNAME` | Username cho admin account tự động tạo    | -           | ❌       |
 
 ### Database Configuration
 
@@ -235,6 +328,36 @@ Sau khi khởi động server, truy cập Swagger UI tại:
 ```
 http://localhost:8080/api/docs
 ```
+
+### Test Token (Development/Testing Only)
+
+Để test API dễ dàng, bạn có thể lấy test token vô hạn (100 năm expiration) với quyền cao hơn ADMIN:
+
+```bash
+POST /api/auth/test-token
+```
+
+**Lưu ý**: Endpoint này không xuất hiện trong Swagger UI. Token sẽ được in ra console terminal (không trả về trong response).
+
+Khi gọi endpoint này, token sẽ được hiển thị trong console terminal như sau:
+
+```
+═══════════════════════════════════════════════════════════
+🔑 TEST TOKEN GENERATED
+═══════════════════════════════════════════════════════════
+Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+═══════════════════════════════════════════════════════════
+⚠️  This token has super admin privileges and bypasses all guards!
+⚠️  USE ONLY IN DEVELOPMENT/TESTING ENVIRONMENT!
+═══════════════════════════════════════════════════════════
+```
+
+**Thông tin về Test Token**:
+
+- Token này có quyền cao hơn ADMIN (bypass tất cả guards)
+- Chỉ nên dùng trong development/testing environment
+- Token có expiration 100 năm (effectively infinite)
+- Token chỉ được log ra console, không xuất hiện trong Swagger UI
 
 ### API Endpoints
 
@@ -318,48 +441,95 @@ Response:
 
 ```
 src/
-├── common/                 # Shared utilities
-│   ├── filters/           # Exception filters
-│   └── interceptors/      # Response interceptors
-├── configs/               # Configuration modules
-│   ├── config.module.ts   # Environment config
-│   └── logger.config.ts   # Winston logger config
-├── prisma/                # Prisma service
-│   ├── prisma.module.ts
-│   └── prisma.service.ts
-├── product/               # Product module
-│   ├── dto/              # Data Transfer Objects
-│   │   ├── create-product.dto.ts
-│   │   ├── update-product.dto.ts
-│   │   └── query-product.dto.ts
+├── auth/                 # Authentication module
+│   ├── decorators/      # Custom decorators (@Public, @CurrentUser, @Roles)
+│   ├── guards/          # Auth guards (JwtAuthGuard, RolesGuard)
+│   ├── strategies/      # Passport strategies (JWT)
+│   ├── dto/            # Auth DTOs (register, login, refresh)
+│   ├── auth.controller.ts
+│   ├── auth.service.ts
+│   └── auth.module.ts
+├── user/                # User management module
+│   ├── dto/            # User DTOs
+│   ├── user.controller.ts
+│   ├── user.service.ts
+│   └── user.module.ts
+├── product/             # Product module
+│   ├── dto/            # Product DTOs
 │   ├── product.controller.ts
 │   ├── product.service.ts
 │   └── product.module.ts
-├── app.module.ts         # Root module
-├── app.controller.ts     # Root controller
-├── app.service.ts        # Root service
-└── main.ts              # Application entry point
+├── review/              # Review module
+│   ├── dto/            # Review DTOs
+│   ├── review.controller.ts
+│   ├── review.service.ts
+│   └── review.module.ts
+├── order/               # Order module
+│   ├── dto/            # Order DTOs
+│   ├── order.controller.ts
+│   ├── order.service.ts
+│   └── order.module.ts
+├── faq/                 # FAQ module
+│   ├── dto/            # FAQ DTOs
+│   ├── faq.controller.ts
+│   ├── faq.service.ts
+│   └── faq.module.ts
+├── cloudinary/          # Cloudinary integration
+│   ├── cloudinary.service.ts
+│   └── cloudinary.module.ts
+├── common/              # Shared utilities
+│   ├── filters/        # Exception filters
+│   ├── interceptors/   # Response interceptors
+│   ├── services/       # Common services
+│   │   └── init.service.ts  # Auto-create admin account
+│   └── common.module.ts
+├── configs/            # Configuration modules
+│   ├── config.module.ts
+│   └── logger.config.ts
+├── prisma/             # Prisma service
+│   ├── prisma.module.ts
+│   └── prisma.service.ts
+├── app.module.ts      # Root module
+├── app.controller.ts  # Root controller
+├── app.service.ts     # Root service
+└── main.ts           # Application entry point
 
 test/
-├── e2e/                 # End-to-end tests
-│   └── product.e2e-spec.ts
-├── unit/                # Unit tests
-│   └── product/
-│       ├── product.controller.spec.ts
-│       └── product.service.spec.ts
-└── jest-e2e.json        # E2E test configuration
+├── e2e/              # End-to-end tests
+│   ├── auth.e2e-spec.ts
+│   ├── user.e2e-spec.ts
+│   ├── product.e2e-spec.ts
+│   ├── review.e2e-spec.ts
+│   ├── order.e2e-spec.ts
+│   └── faq.e2e-spec.ts
+├── unit/             # Unit tests
+│   ├── auth/
+│   ├── user/
+│   ├── product/
+│   ├── review/
+│   ├── order/
+│   └── faq/
+└── jest-e2e.json     # E2E test configuration
 
 prisma/
-├── schema.prisma        # Database schema
-└── migrations/         # Database migrations
+├── schema.prisma     # Database schema
+├── migrations/       # Database migrations
+└── seed.ts          # Database seeding script
 ```
 
 ### Module Structure
 
 - **AppModule**: Root module, imports tất cả các modules và configs
 - **ProductModule**: Module quản lý sản phẩm với controller, service và DTOs
+- **ReviewModule**: Module quản lý reviews, reactions, replies
+- **AuthModule**: Module xác thực JWT, register, login, logout
+- **UserModule**: Module quản lý users với role-based access
+- **OrderModule**: Module quản lý orders (guest và authenticated)
+- **FAQModule**: Module quản lý FAQs (global và product-specific)
+- **CommonModule**: Module chứa InitService (auto-create admin)
 - **PrismaModule**: Module cung cấp PrismaService cho toàn bộ ứng dụng
 - **CustomConfigModule**: Module cấu hình environment variables với validation
+- **CloudinaryModule**: Module tích hợp Cloudinary cho file upload
 
 ### Service Layer
 
@@ -369,13 +539,41 @@ prisma/
   - Soft delete implementation
   - Rating calculation
   - Search và filter logic
+  - Sale management với auto cleanup
+
+- **ReviewService**: Business logic cho reviews, reactions, replies
+  - Upsert logic (1 review/user/product)
+  - Auto-calculate product rating
+  - Nested replies structure
+
+- **AuthService**: Business logic cho authentication
+  - JWT token generation
+  - Password hashing
+  - Test token generation (development only)
+
+- **UserService**: Business logic cho user management
+  - Role-based CRUD operations
+  - Moderator limited permissions
+
+- **OrderService**: Business logic cho order management
+  - Guest và authenticated checkout
+  - Stock management
+  - Order tracking
+
+- **FAQService**: Business logic cho FAQ management
+  - Global và product-specific FAQs
+  - File/image upload integration
+
+- **InitService**: Khởi tạo admin account khi app start (OnModuleInit)
 
 ### Controller Layer
 
-- **ProductController**: RESTful API endpoints
-  - Input validation với DTOs
-  - Error handling
-  - Response transformation
+- **ProductController**: RESTful API endpoints với input validation
+- **ReviewController**: Review endpoints với authorization
+- **AuthController**: Authentication endpoints (login, register, test-token)
+- **UserController**: User CRUD với role-based guards
+- **OrderController**: Order endpoints với guest support
+- **FAQController**: FAQ endpoints với file upload
 
 ## 🧪 Testing
 
@@ -412,50 +610,83 @@ Dự án có test coverage tốt với:
 
 ```
 test/
-├── unit/
-│   └── product/
-│       ├── product.service.spec.ts    # Service unit tests
-│       └── product.controller.spec.ts # Controller unit tests
-└── e2e/
-    └── product.e2e-spec.ts            # E2E integration tests
+├── unit/              # Unit tests
+│   ├── auth/         # Auth service/controller tests
+│   ├── user/         # User service/controller tests
+│   ├── product/      # Product service/controller tests
+│   ├── review/       # Review service/controller tests
+│   ├── order/        # Order service/controller tests
+│   └── faq/          # FAQ service/controller tests
+└── e2e/              # End-to-end tests
+    ├── app.e2e-spec.ts
+    ├── auth.e2e-spec.ts
+    ├── user.e2e-spec.ts
+    ├── product.e2e-spec.ts
+    ├── review.e2e-spec.ts
+    ├── order.e2e-spec.ts
+    └── faq.e2e-spec.ts
 ```
+
+### Test Coverage
+
+**Tổng Coverage: 60.05%**
+
+#### Modules có Coverage Tốt (>80%)
+
+- ✅ **App Module**: 100% coverage
+- ✅ **Auth Module**: 97.8% coverage
+- ✅ **Order Module**: 95.28% coverage
+- ✅ **User Module**: 95.18% coverage
+- ✅ **Product Module**: 88.54% coverage
+
+#### Modules cần Cải thiện
+
+- ⚠️ **Review Module**: 36.24% coverage (cần E2E tests)
+- ⚠️ **FAQ Module**: 25.92% coverage (cần E2E tests)
+- ⚠️ **Cloudinary Module**: 0% coverage (cần unit tests với mocks)
 
 ### Test Cases Coverage
 
-#### Product Service Tests
+#### Product Tests
 
-- ✅ Tạo sản phẩm với variants trong transaction
-- ✅ Auto-generate slug từ tên sản phẩm
-- ✅ Tạo sản phẩm với tất cả optional fields
-- ✅ Tạo sản phẩm với nhiều variants
-- ✅ Pagination với default values
-- ✅ Filter by category, brand, is_featured
-- ✅ Search trong name và description
-- ✅ Tính toán stars_evaluation từ reviews
-- ✅ Tìm sản phẩm theo ID với relations
-- ✅ Increment views_count atomically
-- ✅ Cập nhật sản phẩm với auto-update slug
-- ✅ Soft delete sản phẩm
+- ✅ CRUD operations
+- ✅ Variants management
+- ✅ Search & filter
+- ✅ Sale management
+- ✅ Views tracking
+- ✅ Soft delete
 
-#### Product Controller Tests
+#### Auth Tests
 
-- ✅ Tạo sản phẩm qua API
-- ✅ Lấy danh sách sản phẩm với filters
-- ✅ Lấy chi tiết sản phẩm
-- ✅ Cập nhật sản phẩm
-- ✅ Xóa sản phẩm
-- ✅ Error handling (404, validation errors)
+- ✅ Register với validation
+- ✅ Login (email/username)
+- ✅ JWT token generation
+- ✅ Refresh token
+- ✅ Logout
+- ✅ Password hashing
 
-#### E2E Tests
+#### Order Tests
 
-- ✅ GET empty products list
-- ✅ POST create product với variants
-- ✅ GET product by ID
-- ✅ GET 404 cho non-existent product
-- ✅ PATCH update product với auto-update slug
-- ✅ DELETE soft delete product
-- ✅ GET với category filter
-- ✅ GET với search query
+- ✅ Guest checkout
+- ✅ Authenticated checkout
+- ✅ Stock management
+- ✅ Order tracking
+- ✅ Authorization
+
+#### Review Tests (Partial)
+
+- ✅ Review CRUD
+- ✅ Reactions
+- ✅ Replies
+- ⚠️ E2E tests cần được bổ sung
+
+#### Security Tests
+
+- ✅ SQL Injection protection
+- ✅ XSS protection
+- ✅ IDOR protection
+- ✅ Mass assignment protection
+- ✅ Input validation
 
 ## 📋 Đặc tả kỹ thuật
 
@@ -597,6 +828,22 @@ model Review {
 - ✅ Error handling và logging
 - ✅ Code comments và documentation
 
+### Algorithms & Data Structures
+
+Dự án sử dụng nhiều thuật toán và cấu trúc dữ liệu được tối ưu:
+
+- **Pagination**: Skip/Take pattern với O(limit) space complexity
+- **Rating Calculation**: O(n) time với reduce algorithm
+- **Password Hashing**: bcrypt với O(2^10) iterations
+- **Search**: Full-text search với database indexes (O(log n))
+- **Transactions**: ACID transactions cho data consistency
+- **Atomic Operations**: O(1) atomic increment/decrement
+- **Upsert Algorithm**: O(1) với unique indexes
+- **Stock Management**: Atomic decrement trong transactions
+- **Nested Replies**: Tree structure với self-referencing
+
+Xem chi tiết tại [docs/ALGORITHMS.md](./docs/ALGORITHMS.md)
+
 ## 📝 Scripts
 
 | Script                    | Mô tả                                   |
@@ -622,15 +869,33 @@ model Review {
 4. Push to branch (`git push origin feature/AmazingFeature`)
 5. Mở Pull Request
 
-## 🚧 Tính năng đang phát triển
+## ✅ Tính năng đã Hoàn thành
 
-Các tính năng sau đây đã được thiết kế trong database schema nhưng chưa có API endpoints:
+- ✅ **Product Module**: CRUD đầy đủ, variants, sale management, search & filter
+- ✅ **Review Module**: CRUD reviews, reactions, replies, authorization
+- ✅ **User Module**: CRUD users với role-based access (Admin/Moderator/User permissions)
+- ✅ **Auth Module**: JWT authentication, register, login, logout, refresh token
+- ✅ **Order Module**: Guest checkout, authenticated checkout, order tracking
+- ✅ **FAQ Module**: Global và product-specific FAQs, file upload
+- ✅ **Cloudinary Integration**: Image và file upload
+- ✅ **Security**: JWT, password hashing, role-based access, input validation
+- ✅ **Testing**: Unit tests và E2E tests với coverage 60%+
+- ✅ **Auto Admin Setup**: Tự động tạo admin account khi app khởi động
+- ✅ **Test Token**: Endpoint tạo test token vô hạn (100 năm) để test API với quyền cao hơn ADMIN
 
-- ⏳ **Review Module**: CRUD API cho đánh giá sản phẩm
-- ⏳ **User/Auth Module**: Xác thực người dùng với JWT (schema đã có `userId` trong Review)
+## 🚧 Tính năng có thể Phát triển thêm
+
 - ⏳ **Related Products API**: Quản lý sản phẩm liên quan (relation đã có trong schema)
 - ⏳ **Category Module**: Module quản lý danh mục (hiện tại chỉ là string field)
-- ⏳ **Order/Cart Module**: Quản lý giỏ hàng và đơn hàng
+- ⏳ **Cart Module**: Quản lý giỏ hàng (shopping cart)
+- ⏳ **Email Notifications**: Thông báo qua email
+- ⏳ **Payment Gateway Integration**: Tích hợp cổng thanh toán
+- ⏳ **Tax & Shipping Calculation**: Tính toán thuế và phí vận chuyển tự động
+- ⏳ **Discount/Coupon System**: Hệ thống giảm giá và mã giảm giá
+- ⏳ **Analytics Dashboard**: Dashboard thống kê và phân tích
+- ⏳ **Search Optimization**: Tối ưu tìm kiếm với Elasticsearch
+- ⏳ **Caching**: Redis caching cho performance
+- ⏳ **GraphQL API**: GraphQL API bên cạnh REST API
 
 ## 📄 License
 
