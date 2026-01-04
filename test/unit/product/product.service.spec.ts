@@ -53,7 +53,11 @@ describe('ProductService', () => {
         count: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         delete: jest.fn(),
+      },
+      productVariant: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
     };
 

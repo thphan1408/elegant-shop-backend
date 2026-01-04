@@ -1,8 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from 'src/app.module';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { TransformInterceptor } from 'src/common/interceptors/transform.interceptor';
+import { HttpExceptionFilter } from 'src/common/filters/http-exception.filter';
 
 describe('Product (e2e)', () => {
   let app: INestApplication;
@@ -14,6 +16,19 @@ describe('Product (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    
+    // Apply same configuration as main.ts
+    app.setGlobalPrefix('api');
+    app.useGlobalInterceptors(new TransformInterceptor());
+    app.useGlobalFilters(new HttpExceptionFilter());
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: false,
+        transform: true,
+      }),
+    );
+    
     prisma = app.get<PrismaService>(PrismaService);
     await app.init();
 
@@ -113,6 +128,7 @@ describe('Product (e2e)', () => {
       include: { variants: true },
     });
 
+    // First call to increment views
     const response = await request(app.getHttpServer())
       .get(`/api/products/${product.id}`)
       .expect(200);
@@ -128,7 +144,18 @@ describe('Product (e2e)', () => {
         ]),
       },
     });
-    expect(response.body.data.views_count).toBeGreaterThan(0); // Should increment
+    
+    // Views count should be incremented after GET request
+    // Note: The increment happens in the service, but response may have old value
+    // So we check if it's at least 0 (will be 1 after increment)
+    expect(response.body.data.views_count).toBeGreaterThanOrEqual(0);
+    
+    // Verify by making another GET request - views should increase
+    const secondResponse = await request(app.getHttpServer())
+      .get(`/api/products/${product.id}`)
+      .expect(200);
+    
+    expect(secondResponse.body.data.views_count).toBeGreaterThan(response.body.data.views_count);
   });
 
   it('/api/products/:id (GET) should return 404 for non-existent product', () => {

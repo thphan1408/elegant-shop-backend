@@ -1,9 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { ProductModule } from 'src/product/product.module';
+import { TransformInterceptor } from 'src/common/interceptors/transform.interceptor';
+import { HttpExceptionFilter } from 'src/common/filters/http-exception.filter';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
@@ -14,14 +16,35 @@ describe('AppController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    
+    // Apply same configuration as main.ts
+    app.setGlobalPrefix('api');
+    app.useGlobalInterceptors(new TransformInterceptor());
+    app.useGlobalFilters(new HttpExceptionFilter());
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: false,
+        transform: true,
+      }),
+    );
+    
     await app.init();
   });
 
-  it('/ (GET)', () => {
+  it('/api (GET)', () => {
+    // With global prefix 'api', the root route becomes '/api'
     return request(app.getHttpServer())
-      .get('/')
+      .get('/api')
       .expect(200)
-      .expect('Hello World!');
+      .expect((res) => {
+        // Response is wrapped by TransformInterceptor
+        expect(res.body).toMatchObject({
+          statusCode: 200,
+          message: 'Success',
+          data: 'Hello World!',
+        });
+      });
   });
 
   it('/api/products (GET)', () => {
