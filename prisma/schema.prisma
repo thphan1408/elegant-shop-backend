@@ -55,6 +55,11 @@ enum PaymentMethod {
   OTHER // Khác
 }
 
+enum EmailStatus {
+  SUCCESS
+  FAILED
+}
+
 model Product {
   id               String         @id @default(uuid())
   name             String
@@ -301,4 +306,28 @@ model FAQ {
   @@index([is_active])
   @@index([order])
   @@index([category, is_active, order]) // Composite index for common queries
+}
+
+model EmailTemplate {
+  id         String   @id @default(uuid())
+  name       String   @unique
+  subject    String
+  body       String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+model EmailLog {
+  id        String      @id @default(uuid())
+  to        String
+  subject   String
+  template  String
+  context   Json?
+  status    EmailStatus @default(SUCCESS)
+  error     String?
+  created_at DateTime   @default(now())
+
+  @@index([template])
+  @@index([status])
+  @@index([created_at(sort: Desc)])
 }

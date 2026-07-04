@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   UnauthorizedException,
   ConflictException,
   BadRequestException,
@@ -12,6 +13,8 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ConfigService } from '@nestjs/config';
 import { User, UserRole } from '@prisma/client';
+import { NotificationService } from 'src/notification/notification.service';
+import { EmailTemplateType } from 'src/notification/dto/send-email.dto';
 
 export interface JwtPayload {
   sub: string; // User ID
@@ -34,12 +37,14 @@ export interface AuthResponse {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly saltRounds = 10;
 
   constructor(
     private readonly prismaService: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   /**
@@ -100,6 +105,20 @@ export class AuthService {
 
     // Generate tokens (use regular expiration, rememberMe handled in login)
     const tokens = await this.generateTokens(user.id, user.email, user.role);
+
+    // Fire-and-forget: gửi email chào mừng. KHÔNG await và KHÔNG để lỗi email
+    // làm hỏng luồng đăng ký — nếu SMTP lỗi, user vẫn đăng ký thành công.
+    void this.notificationService
+      .sendEmail({
+        to: user.email,
+        name: user.name ?? undefined,
+        template: EmailTemplateType.WELCOME,
+      })
+      .catch((error: Error) => {
+        this.logger.warn(
+          `Failed to send welcome email to ${user.email}: ${error.message}`,
+        );
+      });
 
     return {
       user: {
