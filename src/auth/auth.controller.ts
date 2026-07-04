@@ -73,8 +73,30 @@ export class AuthController {
     status: 400,
     description: 'Validation error or privacy policy not accepted',
   })
-  async register(@Body() registerDto: RegisterDto) {
-    // DTO transform handles both 'name' and 'yourName' fields
+  async register(@Body() body: any) {
+    // Transform request body to handle 'name' or 'yourName'
+    const transformedBody = {
+      yourName: body.yourName || body.name,
+      username: body.username,
+      email: body.email,
+      password: body.password,
+      privacyPolicy: body.privacyPolicy,
+    };
+
+    // Transform to DTO instance and validate manually
+    const registerDto = plainToInstance(RegisterDto, transformedBody);
+    const errors = await validate(registerDto);
+
+    if (errors.length > 0) {
+      const errorMessages = errors
+        .map((error) => Object.values(error.constraints || {}))
+        .flat();
+      throw new BadRequestException({
+        message: 'Validation failed',
+        errors: errorMessages,
+      });
+    }
+
     return this.authService.register(registerDto);
   }
 
