@@ -446,7 +446,9 @@ export class ReviewService {
             },
           });
 
-          type ReviewReactionType = Prisma.ReviewReactionGetPayload<{}>;
+          type ReviewReactionType = Prisma.ReviewReactionGetPayload<
+            Record<string, never>
+          >;
 
           let reaction: ReviewReactionType | null;
           if (existingReaction) {
@@ -504,8 +506,8 @@ export class ReviewService {
 
       // Handle Prisma errors (race conditions, connection issues, etc.)
       this.logger.error(
-        `Error creating/updating reaction for user ${userId} on review ${reviewId}: ${error.message}`,
-        error.stack,
+        `Error creating/updating reaction for user ${userId} on review ${reviewId}: ${(error as Error).message}`,
+        (error as Error).stack,
       );
 
       // Check for unique constraint violation (race condition)
@@ -710,11 +712,12 @@ export class ReviewService {
       },
     });
 
-    // Build nested structure (only direct replies at top level)
-    const directReplies = replies.filter((reply) => !reply.parentId);
-
     // Helper function to build nested structure recursively
-    const buildNestedReplies = (parentId: string | null) => {
+    type NestedReply = Prisma.ReviewReplyGetPayload<Record<string, never>> & {
+      replies: NestedReply[];
+    };
+
+    const buildNestedReplies = (parentId: string | null): NestedReply[] => {
       return replies
         .filter((reply) => reply.parentId === parentId)
         .map((reply) => ({
