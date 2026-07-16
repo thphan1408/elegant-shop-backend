@@ -61,8 +61,22 @@ describe('AuthController', () => {
 
       const result = await controller.register(registerDto);
 
-      expect(authServiceMock.register).toHaveBeenCalledWith(registerDto);
+      expect(authServiceMock.register).toHaveBeenCalledWith(
+        registerDto,
+        undefined,
+      );
       expect(result).toEqual(mockAuthResponse);
+    });
+
+    it('should forward the X-Guest-Id header to the service', async () => {
+      authServiceMock.register.mockResolvedValue(mockAuthResponse);
+
+      await controller.register(registerDto, 'guest-xyz');
+
+      expect(authServiceMock.register).toHaveBeenCalledWith(
+        registerDto,
+        'guest-xyz',
+      );
     });
   });
 
@@ -78,8 +92,16 @@ describe('AuthController', () => {
 
       const result = await controller.login(loginDto);
 
-      expect(authServiceMock.login).toHaveBeenCalledWith(loginDto);
+      expect(authServiceMock.login).toHaveBeenCalledWith(loginDto, undefined);
       expect(result).toEqual(mockAuthResponse);
+    });
+
+    it('should forward the X-Guest-Id header to the service', async () => {
+      authServiceMock.login.mockResolvedValue(mockAuthResponse);
+
+      await controller.login(loginDto, 'guest-xyz');
+
+      expect(authServiceMock.login).toHaveBeenCalledWith(loginDto, 'guest-xyz');
     });
   });
 

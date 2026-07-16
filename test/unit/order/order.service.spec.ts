@@ -10,6 +10,8 @@ import { CreateOrderDto } from 'src/order/dto/create-order.dto';
 import { UpdateOrderDto } from 'src/order/dto/update-order.dto';
 import { QueryOrderDto } from 'src/order/dto/query-order.dto';
 import { OrderStatus, PaymentMethod, UserRole } from '@prisma/client';
+import { NotificationService } from 'src/notification/notification.service';
+import { CartService } from 'src/cart/cart.service';
 
 describe('OrderService', () => {
   let service: OrderService;
@@ -79,6 +81,19 @@ describe('OrderService', () => {
         {
           provide: PrismaService,
           useValue: prismaMock,
+        },
+        {
+          // Order emails are fire-and-forget; resolve so the .catch() chain is happy.
+          provide: NotificationService,
+          useValue: { sendEmail: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          // Only used by checkout(); provided here so DI resolves for all tests.
+          provide: CartService,
+          useValue: {
+            getCart: jest.fn(),
+            clearCart: jest.fn().mockResolvedValue(undefined),
+          },
         },
       ],
     }).compile();

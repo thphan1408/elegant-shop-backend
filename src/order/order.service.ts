@@ -1,20 +1,86 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { CheckoutDto } from './dto/checkout.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { QueryOrderDto } from './dto/query-order.dto';
 import { OrderStatus, PaymentMethod, UserRole } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import type { User } from '@prisma/client';
+import { NotificationService } from 'src/notification/notification.service';
+import { EmailTemplateType } from 'src/notification/dto/send-email.dto';
+import { CartService } from 'src/cart/cart.service';
+
+/**
+ * Tập con các trường của Order mà các email cần đến.
+ * Dùng structural typing: truyền cả object order (giàu hơn) vào vẫn hợp lệ.
+ */
+type OrderEmailPayload = {
+  orderNumber: string;
+  status: OrderStatus;
+  total: number;
+  notes: string | null;
+  guestEmail: string | null;
+  guestName: string | null;
+  user: { email: string; name: string | null } | null;
+  items?: Array<{ productName: string; quantity: number; unitPrice: number }>;
+};
 
 @Injectable()
 export class OrderService {
-  constructor(private readonly prismaService: PrismaService) {}
+  private readonly logger = new Logger(OrderService.name);
+
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly notificationService: NotificationService,
+    private readonly cartService: CartService,
+  ) {}
+
+  /**
+   * Checkout: create an order from the caller's server-side cart, then clear it.
+   * Items come from the cart (not the client), so the request only carries
+   * shipping/payment/guest info. Delegates to create() for stock re-validation,
+   * price snapshotting, stock decrement and the confirmation email.
+   * @param dto - Shipping/payment/guest data (no items)
+   * @param currentUser - Authenticated user, if any
+   * @param guestId - Guest cart id (X-Guest-Id header) for anonymous checkout
+   * @throws BadRequestException if the cart is empty
+   */
+  async checkout(dto: CheckoutDto, currentUser?: User, guestId?: string) {
+    const cart = await this.cartService.getCart(currentUser?.id, guestId);
+
+    if (cart.items.length === 0) {
+      throw new BadRequestException('Your cart is empty');
+    }
+
+    const items = cart.items.map((item) => ({
+      variantId: item.variantId,
+      quantity: item.quantity,
+    }));
+
+    // Reuse the battle-tested create(): it re-checks stock inside a transaction,
+    // so anything sold out since the item was added to the cart fails here and
+    // no order (and no cart clear) happens — the customer keeps their cart.
+    const order = await this.create({ ...dto, items }, currentUser);
+
+    // Order committed successfully -> empty the cart. Best-effort: a failure to
+    // clear must not fail the response, since the order already exists.
+    try {
+      await this.cartService.clearCart(currentUser?.id, guestId);
+    } catch (error) {
+      this.logger.warn(
+        `Order ${order.orderNumber} placed but failed to clear cart: ${(error as Error).message}`,
+      );
+    }
+
+    return order;
+  }
 
   /**
    * Generate unique order number
@@ -87,7 +153,7 @@ export class OrderService {
     }
 
     // Start transaction
-    return this.prismaService.$transaction(async (tx) => {
+    const createdOrder = await this.prismaService.$transaction(async (tx) => {
       // Fetch all variants and validate
       const variantIds = createOrderDto.items.map((item) => item.variantId);
       const variants = await tx.productVariant.findMany({
@@ -213,6 +279,11 @@ export class OrderService {
 
       return order;
     });
+
+    // Chỉ gửi email SAU khi transaction đã commit thành công (không gửi nếu rollback).
+    this.dispatchOrderConfirmationEmail(createdOrder);
+
+    return createdOrder;
   }
 
   /**
@@ -466,7 +537,87 @@ export class OrderService {
       },
     });
 
+    // Chỉ báo khách khi trạng thái THỰC SỰ đổi (tránh spam khi chỉ sửa notes/tracking).
+    if (updateOrderDto.status && updateOrderDto.status !== order.status) {
+      this.dispatchOrderStatusUpdateEmail(updatedOrder);
+    }
+
     return updatedOrder;
+  }
+
+  // ===== Helpers: gửi email theo sự kiện (fire-and-forget) =====
+
+  /**
+   * Xác định người nhận email của đơn hàng.
+   * Đơn của user đã đăng nhập -> email tài khoản; đơn khách vãng lai -> guestEmail.
+   * @returns { to, name } hoặc null nếu không có email để gửi.
+   */
+  private resolveOrderRecipient(
+    order: OrderEmailPayload,
+  ): { to: string; name?: string } | null {
+    const to = order.user?.email ?? order.guestEmail;
+    if (!to) {
+      return null;
+    }
+    return { to, name: order.user?.name ?? order.guestName ?? undefined };
+  }
+
+  /**
+   * Gửi email xác nhận đơn hàng. Không await, không để lỗi email làm hỏng luồng đặt hàng.
+   */
+  private dispatchOrderConfirmationEmail(order: OrderEmailPayload): void {
+    const recipient = this.resolveOrderRecipient(order);
+    if (!recipient) {
+      return;
+    }
+
+    void this.notificationService
+      .sendEmail({
+        to: recipient.to,
+        name: recipient.name,
+        template: EmailTemplateType.ORDER_CONFIRMATION,
+        context: {
+          orderNumber: order.orderNumber,
+          total: order.total,
+          items: (order.items ?? []).map((item) => ({
+            name: item.productName,
+            quantity: item.quantity,
+            price: item.unitPrice,
+          })),
+        },
+      })
+      .catch((error: Error) => {
+        this.logger.warn(
+          `Failed to send order confirmation for ${order.orderNumber}: ${error.message}`,
+        );
+      });
+  }
+
+  /**
+   * Gửi email thông báo cập nhật trạng thái đơn hàng (fire-and-forget).
+   */
+  private dispatchOrderStatusUpdateEmail(order: OrderEmailPayload): void {
+    const recipient = this.resolveOrderRecipient(order);
+    if (!recipient) {
+      return;
+    }
+
+    void this.notificationService
+      .sendEmail({
+        to: recipient.to,
+        name: recipient.name,
+        template: EmailTemplateType.ORDER_STATUS_UPDATE,
+        context: {
+          orderNumber: order.orderNumber,
+          status: order.status,
+          notes: order.notes ?? undefined,
+        },
+      })
+      .catch((error: Error) => {
+        this.logger.warn(
+          `Failed to send status update for ${order.orderNumber}: ${error.message}`,
+        );
+      });
   }
 }
 

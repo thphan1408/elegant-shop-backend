@@ -5,6 +5,7 @@ import {
   BadRequestException,
   ForbiddenException,
   UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Prisma, UserRole } from '@prisma/client';
@@ -17,18 +18,74 @@ import { CreateReplyDto } from './dto/create-reply.dto';
 import { UpdateReplyDto } from './dto/update-reply.dto';
 import { ReactionType } from '@prisma/client';
 
+/**
+ * In-memory cache để debounce reaction requests
+ * Key: `${userId}:${reviewId}`, Value: timestamp of last request
+ */
+interface ReactionCache {
+  [key: string]: number;
+}
+
 @Injectable()
 export class ReviewService {
-  constructor(private readonly prismaService: PrismaService) {}
+  private readonly logger = new Logger(ReviewService.name);
+  // In-memory cache để debounce reaction requests (300ms debounce time)
+  private readonly reactionCache: ReactionCache = {};
+  private readonly REACTION_DEBOUNCE_MS = 300; // 300ms debounce - prevent rapid spam
+
+  constructor(private readonly prismaService: PrismaService) {
+    // Clean up cache every 5 minutes to prevent memory leak
+    const cleanupInterval = setInterval(
+      () => {
+        const now = Date.now();
+        const keys = Object.keys(this.reactionCache);
+        let cleaned = 0;
+        for (const key of keys) {
+          if (now - this.reactionCache[key] > 60000) {
+            // Remove entries older than 1 minute
+            delete this.reactionCache[key];
+            cleaned++;
+          }
+        }
+        if (cleaned > 0) {
+          this.logger.debug(
+            `Cleaned up ${cleaned} expired reaction cache entries`,
+          );
+        }
+      },
+      5 * 60 * 1000,
+    );
+    // Don't let this housekeeping timer keep the process (or Jest) alive.
+    cleanupInterval.unref();
+  }
 
   /**
    * Create or update a review (upsert logic for Option 1: Single review per user per product)
    * If user already has a review for this product, update it instead of creating new one
-   * @param createReviewDto - Review data (productId, userId, rating, comment)
+   * @param createReviewDto - Review data (productId, rating, comment)
+   * @param currentUser - Current authenticated user (required, must not be GUEST)
    * @returns Created or updated review with product info
+   * @throws UnauthorizedException if user is not authenticated
+   * @throws ForbiddenException if user is GUEST role (guests cannot review)
    * @throws NotFoundException if product not found or inactive
    */
-  async createOrUpdateReview(createReviewDto: CreateReviewDto) {
+  async createOrUpdateReview(
+    createReviewDto: CreateReviewDto,
+    currentUser: User,
+  ) {
+    // Ensure user is authenticated
+    if (!currentUser) {
+      throw new UnauthorizedException(
+        'You must be logged in to create a review',
+      );
+    }
+
+    // Guest users cannot create reviews - only USER, ADMIN, MODERATOR can
+    if (currentUser.role === UserRole.GUEST) {
+      throw new ForbiddenException(
+        'Guest users cannot create reviews. Please login to review products.',
+      );
+    }
     // Verify product exists
     const product = await this.prismaService.product.findUnique({
       where: { id: createReviewDto.productId, is_active: true },
@@ -40,17 +97,18 @@ export class ReviewService {
 
     // Use transaction to ensure atomicity
     return this.prismaService.$transaction(async (tx) => {
+      // Use currentUser.id (authenticated user) instead of DTO userId
+      const userId = currentUser.id;
+
       // Check if review already exists for this user-product combination
-      const existingReview = createReviewDto.userId
-        ? await tx.review.findUnique({
-            where: {
-              productId_userId: {
-                productId: createReviewDto.productId,
-                userId: createReviewDto.userId,
-              },
-            },
-          })
-        : null;
+      const existingReview = await tx.review.findUnique({
+        where: {
+          productId_userId: {
+            productId: createReviewDto.productId,
+            userId: userId,
+          },
+        },
+      });
 
       type ReviewWithProduct = Prisma.ReviewGetPayload<{
         include: {
@@ -83,11 +141,11 @@ export class ReviewService {
           },
         });
       } else {
-        // Create new review
+        // Create new review (userId is required - from authenticated user)
         review = await tx.review.create({
           data: {
             productId: createReviewDto.productId,
-            userId: createReviewDto.userId ?? null,
+            userId: userId, // Required - from authenticated user
             rating: createReviewDto.rating,
             comment: createReviewDto.comment ?? null,
           },
@@ -147,6 +205,17 @@ export class ReviewService {
               slug: true,
             },
           },
+          user: {
+            select: {
+              id: true,
+              email: true,
+              userName: true,
+              name: true,
+              avatar: true,
+              created_at: true,
+              updated_at: true,
+            },
+          },
         },
       }),
       this.prismaService.review.count({ where }),
@@ -175,6 +244,17 @@ export class ReviewService {
             id: true,
             name: true,
             slug: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            userName: true,
+            name: true,
+            avatar: true,
+            created_at: true,
+            updated_at: true,
           },
         },
       },
@@ -293,11 +373,15 @@ export class ReviewService {
   }
 
   /**
-   * Create or update a reaction to a review (upsert logic)
+   * Create, update, or toggle a reaction to a review (toggle logic)
+   * Toggle behavior:
+   * - If clicking the same reaction type again (like → like or dislike → dislike) → removes reaction (toggle off)
+   * - If clicking different reaction type (like → dislike or dislike → like) → updates reaction (switches)
+   * - If no existing reaction → creates new reaction
    * @param reviewId - Review ID to react to
    * @param createReactionDto - Reaction data (like/dislike)
    * @param currentUser - Current authenticated user (required for guests)
-   * @returns Created or updated reaction
+   * @returns Created/updated reaction, or removal message if toggled off
    * @throws NotFoundException if review not found
    * @throws UnauthorizedException if user is not authenticated (guests must login)
    */
@@ -306,15 +390,6 @@ export class ReviewService {
     createReactionDto: CreateReactionDto,
     currentUser?: User,
   ) {
-    // Verify review exists
-    const review = await this.prismaService.review.findUnique({
-      where: { id: reviewId },
-    });
-
-    if (!review) {
-      throw new NotFoundException('Review not found');
-    }
-
     // Authorization: Guests must login to react
     if (!currentUser && !createReactionDto.userId) {
       throw new UnauthorizedException(
@@ -325,45 +400,137 @@ export class ReviewService {
     // Use current user's ID if available, otherwise use DTO userId
     const userId = currentUser?.id || createReactionDto.userId;
 
-    // Use transaction to ensure atomicity
-    return this.prismaService.$transaction(async (tx) => {
-      // Check if reaction already exists
-      const existingReaction = userId
-        ? await tx.reviewReaction.findUnique({
+    if (!userId) {
+      throw new UnauthorizedException('User ID is required');
+    }
+
+    // Debouncing: Prevent rapid spam requests
+    const cacheKey = `${userId}:${reviewId}`;
+    const now = Date.now();
+    const lastRequestTime = this.reactionCache[cacheKey];
+
+    if (lastRequestTime && now - lastRequestTime < this.REACTION_DEBOUNCE_MS) {
+      // Too soon - return cached result or reject
+      this.logger.warn(
+        `Reaction request debounced for user ${userId} on review ${reviewId} (last request ${now - lastRequestTime}ms ago)`,
+      );
+      throw new BadRequestException(
+        'Please wait a moment before reacting again. Too many requests too quickly.',
+      );
+    }
+
+    // Update cache timestamp
+    this.reactionCache[cacheKey] = now;
+
+    try {
+      // Verify review exists (do this before transaction to save resources)
+      const review = await this.prismaService.review.findUnique({
+        where: { id: reviewId },
+        select: { id: true }, // Only select id to reduce data transfer
+      });
+
+      if (!review) {
+        throw new NotFoundException('Review not found');
+      }
+
+      // Use transaction to ensure atomicity and prevent race conditions
+      return await this.prismaService.$transaction(
+        async (tx) => {
+          // Check if reaction already exists
+          const existingReaction = await tx.reviewReaction.findUnique({
             where: {
               reviewId_userId: {
                 reviewId,
                 userId: userId,
               },
             },
-          })
-        : null;
+          });
 
-      type ReviewReactionType = Prisma.ReviewReactionGetPayload<{}>;
+          type ReviewReactionType = Prisma.ReviewReactionGetPayload<{}>;
 
-      let reaction: ReviewReactionType;
-      if (existingReaction) {
-        // Update existing reaction
-        reaction = await tx.reviewReaction.update({
-          where: { id: existingReaction.id },
-          data: {
-            reaction: createReactionDto.reaction,
-            // updated_at is automatically updated by Prisma
-          },
-        });
-      } else {
-        // Create new reaction
-        reaction = await tx.reviewReaction.create({
-          data: {
-            reviewId,
-            userId: userId ?? null,
-            reaction: createReactionDto.reaction,
-          },
-        });
+          let reaction: ReviewReactionType | null;
+          if (existingReaction) {
+            // If clicking the same reaction type again → toggle off (remove reaction)
+            if (existingReaction.reaction === createReactionDto.reaction) {
+              // Remove reaction (toggle off)
+              await tx.reviewReaction.delete({
+                where: { id: existingReaction.id },
+              });
+              return {
+                message: 'Reaction removed successfully',
+                removed: true,
+              };
+            } else {
+              // Different reaction type → update (like → dislike or dislike → like)
+              reaction = await tx.reviewReaction.update({
+                where: { id: existingReaction.id },
+                data: {
+                  reaction: createReactionDto.reaction,
+                  // updated_at is automatically updated by Prisma
+                },
+              });
+              return reaction;
+            }
+          } else {
+            // Create new reaction (no existing reaction)
+            reaction = await tx.reviewReaction.create({
+              data: {
+                reviewId,
+                userId: userId,
+                reaction: createReactionDto.reaction,
+              },
+            });
+            return reaction;
+          }
+        },
+        {
+          // Transaction timeout: 5 seconds
+          maxWait: 5000,
+          timeout: 5000,
+        },
+      );
+    } catch (error) {
+      // Remove from cache on error so user can retry
+      delete this.reactionCache[cacheKey];
+
+      // Re-throw known exceptions
+      if (
+        error instanceof NotFoundException ||
+        error instanceof UnauthorizedException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
       }
 
-      return reaction;
-    });
+      // Handle Prisma errors (race conditions, connection issues, etc.)
+      this.logger.error(
+        `Error creating/updating reaction for user ${userId} on review ${reviewId}: ${error.message}`,
+        error.stack,
+      );
+
+      // Check for unique constraint violation (race condition)
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'Reaction already exists. Please try again.',
+        );
+      }
+
+      // Handle transaction timeout
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new BadRequestException('Operation timed out. Please try again.');
+      }
+
+      // Generic error
+      throw new BadRequestException(
+        'Failed to process reaction. Please try again later.',
+      );
+    }
   }
 
   /**

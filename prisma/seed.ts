@@ -27,6 +27,10 @@ async function main() {
   // Clear all existing data
   console.log('🗑️  Clearing existing data...');
   await prisma.review.deleteMany({});
+  await prisma.orderItem.deleteMany({});
+  await prisma.order.deleteMany({});
+  await prisma.reviewReaction.deleteMany({});
+  await prisma.reviewReply.deleteMany({});
   try {
     await prisma.fAQ.deleteMany({});
   } catch (error) {
@@ -35,6 +39,7 @@ async function main() {
   }
   await prisma.productVariant.deleteMany({});
   await prisma.product.deleteMany({});
+  await prisma.user.deleteMany({});
 
   // Create sale dates - some products will have sales
   const now = new Date();
@@ -61,8 +66,8 @@ async function main() {
       warranty: '2 years',
       tags: ['sofa', 'sectional', 'furniture', 'modern', 'comfortable'],
       images: [
-        'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800',
-        'https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?w=800',
+        'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=262&h=349&fit=crop',
+        'https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?w=262&h=349&fit=crop',
       ],
       meta_title: 'Modern Sectional Sofa - Premium Living Room Furniture',
       meta_description:
@@ -79,10 +84,10 @@ async function main() {
           price_sale: 999.99,
           quantity: 12,
           image:
-            'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600',
+            'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800',
-            'https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?w=800',
+            'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=262&h=349&fit=crop',
+            'https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?w=262&h=349&fit=crop',
           ],
           size: 'Standard',
         },
@@ -94,9 +99,9 @@ async function main() {
           price_sale: 999.99,
           quantity: 8,
           image:
-            'https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?w=600',
+            'https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?w=800',
+            'https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?w=262&h=349&fit=crop',
           ],
           size: 'Standard',
         },
@@ -114,8 +119,8 @@ async function main() {
       warranty: '1 year',
       tags: ['table', 'storage', 'coffee table', 'functional', 'modern'],
       images: [
-        'https://images.unsplash.com/photo-1532372320572-cda25653a26d?w=800',
-        'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800',
+        'https://images.unsplash.com/photo-1532372320572-cda25653a26d?w=262&h=349&fit=crop',
+        'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=262&h=349&fit=crop',
       ],
       meta_title: 'Coffee Table with Storage - Modern Design',
       meta_description:
@@ -129,9 +134,9 @@ async function main() {
           price: 299.99,
           quantity: 25,
           image:
-            'https://images.unsplash.com/photo-1532372320572-cda25653a26d?w=600',
+            'https://images.unsplash.com/photo-1532372320572-cda25653a26d?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1532372320572-cda25653a26d?w=800',
+            'https://images.unsplash.com/photo-1532372320572-cda25653a26d?w=262&h=349&fit=crop',
           ],
         },
         {
@@ -141,9 +146,9 @@ async function main() {
           price: 299.99,
           quantity: 18,
           image:
-            'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=600',
+            'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800',
+            'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=262&h=349&fit=crop',
           ],
         },
       ],
@@ -166,8 +171,8 @@ async function main() {
         'cable management',
       ],
       images: [
-        'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800',
-        'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800',
+        'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=262&h=349&fit=crop',
+        'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=262&h=349&fit=crop',
       ],
       meta_title: 'TV Stand Entertainment Center - Modern Design',
       meta_description:
@@ -184,9 +189,9 @@ async function main() {
           price_sale: 429.99,
           quantity: 10,
           image:
-            'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=600',
+            'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800',
+            'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=262&h=349&fit=crop',
           ],
         },
         {
@@ -197,9 +202,9 @@ async function main() {
           price_sale: 429.99,
           quantity: 12,
           image:
-            'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600',
+            'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800',
+            'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=262&h=349&fit=crop',
           ],
         },
       ],
@@ -216,8 +221,8 @@ async function main() {
       warranty: '1 year',
       tags: ['chair', 'accent', 'velvet', 'comfortable', 'luxury'],
       images: [
-        'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=800',
-        'https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=800',
+        'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=262&h=349&fit=crop',
+        'https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=262&h=349&fit=crop',
       ],
       meta_title: 'Velvet Accent Chair - Premium Luxury Seating',
       meta_description:
@@ -231,9 +236,9 @@ async function main() {
           price: 349.99,
           quantity: 15,
           image:
-            'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=600',
+            'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=800',
+            'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=262&h=349&fit=crop',
           ],
         },
         {
@@ -243,9 +248,9 @@ async function main() {
           price: 349.99,
           quantity: 12,
           image:
-            'https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=600',
+            'https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=800',
+            'https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=262&h=349&fit=crop',
           ],
         },
       ],
@@ -263,8 +268,8 @@ async function main() {
       warranty: '3 years',
       tags: ['bed', 'bedroom', 'queen size', 'platform', 'headboard'],
       images: [
-        'https://images.unsplash.com/photo-1631889993954-3d17d8c3a58e?w=800',
-        'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=800',
+        'https://images.unsplash.com/photo-1631889993954-3d17d8c3a58e?w=262&h=349&fit=crop',
+        'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=262&h=349&fit=crop',
       ],
       meta_title: 'Queen Size Platform Bed - Modern Bedroom Furniture',
       meta_description:
@@ -281,9 +286,9 @@ async function main() {
           price_sale: 549.99,
           quantity: 8,
           image:
-            'https://images.unsplash.com/photo-1631889993954-3d17d8c3a58e?w=600',
+            'https://images.unsplash.com/photo-1631889993954-3d17d8c3a58e?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1631889993954-3d17d8c3a58e?w=800',
+            'https://images.unsplash.com/photo-1631889993954-3d17d8c3a58e?w=262&h=349&fit=crop',
           ],
           size: 'Queen',
         },
@@ -295,9 +300,9 @@ async function main() {
           price_sale: 549.99,
           quantity: 6,
           image:
-            'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=600',
+            'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=800',
+            'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=262&h=349&fit=crop',
           ],
           size: 'Queen',
         },
@@ -315,8 +320,8 @@ async function main() {
       warranty: '2 years',
       tags: ['dresser', 'mirror', 'storage', 'bedroom', 'drawers'],
       images: [
-        'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=800',
-        'https://images.unsplash.com/photo-1631889993954-3d17d8c3a58e?w=800',
+        'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=262&h=349&fit=crop',
+        'https://images.unsplash.com/photo-1631889993954-3d17d8c3a58e?w=262&h=349&fit=crop',
       ],
       meta_title: '6-Drawer Dresser with Mirror - Bedroom Storage',
       meta_description:
@@ -330,9 +335,9 @@ async function main() {
           price: 479.99,
           quantity: 12,
           image:
-            'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=600',
+            'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=800',
+            'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=262&h=349&fit=crop',
           ],
         },
         {
@@ -342,9 +347,9 @@ async function main() {
           price: 479.99,
           quantity: 10,
           image:
-            'https://images.unsplash.com/photo-1631889993954-3d17d8c3a58e?w=600',
+            'https://images.unsplash.com/photo-1631889993954-3d17d8c3a58e?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1631889993954-3d17d8c3a58e?w=800',
+            'https://images.unsplash.com/photo-1631889993954-3d17d8c3a58e?w=262&h=349&fit=crop',
           ],
         },
       ],
@@ -361,8 +366,8 @@ async function main() {
       warranty: '1 year',
       tags: ['nightstand', 'bedroom', 'storage', 'set', 'modern'],
       images: [
-        'https://images.unsplash.com/photo-1631889993954-3d17d8c3a58e?w=800',
-        'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=800',
+        'https://images.unsplash.com/photo-1631889993954-3d17d8c3a58e?w=262&h=349&fit=crop',
+        'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=262&h=349&fit=crop',
       ],
       meta_title: 'Nightstand Set of 2 - Modern Bedroom Furniture',
       meta_description: 'Matching nightstand set for your bedroom.',
@@ -378,9 +383,9 @@ async function main() {
           price_sale: 179.99,
           quantity: 18,
           image:
-            'https://images.unsplash.com/photo-1631889993954-3d17d8c3a58e?w=600',
+            'https://images.unsplash.com/photo-1631889993954-3d17d8c3a58e?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1631889993954-3d17d8c3a58e?w=800',
+            'https://images.unsplash.com/photo-1631889993954-3d17d8c3a58e?w=262&h=349&fit=crop',
           ],
         },
         {
@@ -391,9 +396,9 @@ async function main() {
           price_sale: 179.99,
           quantity: 15,
           image:
-            'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=600',
+            'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=800',
+            'https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=262&h=349&fit=crop',
           ],
         },
       ],
@@ -411,8 +416,8 @@ async function main() {
       warranty: '2 years',
       tags: ['kitchen island', 'bar stools', 'storage', 'dining', 'granite'],
       images: [
-        'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=800',
-        'https://images.unsplash.com/photo-1556912173-48e7a0c93e7e?w=800',
+        'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=262&h=349&fit=crop',
+        'https://images.unsplash.com/photo-1556912173-48e7a0c93e7e?w=262&h=349&fit=crop',
       ],
       meta_title: 'Kitchen Island with Bar Stools - Functional Design',
       meta_description:
@@ -429,10 +434,10 @@ async function main() {
           price_sale: 1249.99,
           quantity: 4,
           image:
-            'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=600',
+            'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=800',
-            'https://images.unsplash.com/photo-1556912173-48e7a0c93e7e?w=800',
+            'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=262&h=349&fit=crop',
+            'https://images.unsplash.com/photo-1556912173-48e7a0c93e7e?w=262&h=349&fit=crop',
           ],
         },
         {
@@ -443,10 +448,10 @@ async function main() {
           price_sale: 1249.99,
           quantity: 3,
           image:
-            'https://images.unsplash.com/photo-1556912173-48e7a0c93e7e?w=600',
+            'https://images.unsplash.com/photo-1556912173-48e7a0c93e7e?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1556912173-48e7a0c93e7e?w=800',
-            'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=800',
+            'https://images.unsplash.com/photo-1556912173-48e7a0c93e7e?w=262&h=349&fit=crop',
+            'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=262&h=349&fit=crop',
           ],
         },
       ],
@@ -463,8 +468,8 @@ async function main() {
       warranty: '3 years',
       tags: ['dining table', 'chairs', 'set', 'extendable', 'elegant'],
       images: [
-        'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=800',
-        'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=800',
+        'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=262&h=349&fit=crop',
+        'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=262&h=349&fit=crop',
       ],
       meta_title: '6-Piece Dining Table Set - Elegant Design',
       meta_description:
@@ -478,9 +483,9 @@ async function main() {
           price: 1199.99,
           quantity: 5,
           image:
-            'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=600',
+            'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=800',
+            'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=262&h=349&fit=crop',
           ],
         },
         {
@@ -490,9 +495,9 @@ async function main() {
           price: 1199.99,
           quantity: 7,
           image:
-            'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=600',
+            'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=800',
+            'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=262&h=349&fit=crop',
           ],
         },
       ],
@@ -509,8 +514,8 @@ async function main() {
       warranty: '2 years',
       tags: ['cabinet', 'storage', 'kitchen', 'shelves', 'glass doors'],
       images: [
-        'https://images.unsplash.com/photo-1556912172-45b7abe8b7e1?w=800',
-        'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=800',
+        'https://images.unsplash.com/photo-1556912172-45b7abe8b7e1?w=262&h=349&fit=crop',
+        'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=262&h=349&fit=crop',
       ],
       meta_title: 'Kitchen Storage Cabinet - Spacious Design',
       meta_description:
@@ -527,9 +532,9 @@ async function main() {
           price_sale: 359.99,
           quantity: 12,
           image:
-            'https://images.unsplash.com/photo-1556912172-45b7abe8b7e1?w=600',
+            'https://images.unsplash.com/photo-1556912172-45b7abe8b7e1?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1556912172-45b7abe8b7e1?w=800',
+            'https://images.unsplash.com/photo-1556912172-45b7abe8b7e1?w=262&h=349&fit=crop',
           ],
         },
         {
@@ -540,9 +545,9 @@ async function main() {
           price_sale: 359.99,
           quantity: 10,
           image:
-            'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=600',
+            'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=262&h=349&fit=crop',
           images: [
-            'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=800',
+            'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=262&h=349&fit=crop',
           ],
         },
       ],

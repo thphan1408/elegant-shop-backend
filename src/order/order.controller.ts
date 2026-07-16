@@ -6,6 +6,7 @@ import {
   Patch,
   Param,
   Query,
+  Headers,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -16,9 +17,11 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiHeader,
 } from '@nestjs/swagger';
 import { OrderService } from './order.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { CheckoutDto } from './dto/checkout.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { QueryOrderDto } from './dto/query-order.dto';
 import { Public } from 'src/auth/decorators/public.decorator';
@@ -60,6 +63,43 @@ export class OrderController {
     @CurrentUser() currentUser?: User,
   ) {
     return this.orderService.create(createOrderDto, currentUser);
+  }
+
+  /**
+   * Checkout: create an order from the caller's current cart, then clear it.
+   * Items are read server-side from the cart, so the body only carries
+   * shipping/payment (and guest) info — not the items list.
+   * @param checkoutDto - Shipping/payment/guest data (no items)
+   * @param currentUser - Current authenticated user (optional for guests)
+   * @param guestId - Guest cart id (X-Guest-Id header) for anonymous checkout
+   * @returns Created order
+   */
+  @Post('checkout')
+  @Public() // Allow guest checkout from a guest cart
+  @HttpCode(HttpStatus.CREATED)
+  @ApiHeader({
+    name: 'X-Guest-Id',
+    required: false,
+    description:
+      'Guest cart id used pre-auth. Ignored when a valid Bearer token is sent.',
+  })
+  @ApiOperation({
+    summary: 'Checkout the current cart into an order',
+    description:
+      'Reads items from the caller cart (authenticated user or X-Guest-Id guest), creates the order, then clears the cart. Body carries only shipping/payment/guest info.',
+  })
+  @ApiResponse({ status: 201, description: 'Order created from cart' })
+  @ApiResponse({
+    status: 400,
+    description: 'Cart is empty or insufficient stock',
+  })
+  @ApiResponse({ status: 404, description: 'Product variant not found' })
+  checkout(
+    @Body() checkoutDto: CheckoutDto,
+    @CurrentUser() currentUser?: User,
+    @Headers('x-guest-id') guestId?: string,
+  ) {
+    return this.orderService.checkout(checkoutDto, currentUser, guestId);
   }
 
   /**

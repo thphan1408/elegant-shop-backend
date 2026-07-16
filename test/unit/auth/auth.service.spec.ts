@@ -12,6 +12,8 @@ import * as bcrypt from 'bcrypt';
 import { RegisterDto } from 'src/auth/dto/register.dto';
 import { LoginDto } from 'src/auth/dto/login.dto';
 import { UserRole } from '@prisma/client';
+import { NotificationService } from 'src/notification/notification.service';
+import { CartService } from 'src/cart/cart.service';
 
 jest.mock('bcrypt');
 
@@ -20,6 +22,8 @@ describe('AuthService', () => {
   let prismaMock: any;
   let jwtServiceMock: any;
   let configServiceMock: any;
+  let notificationServiceMock: any;
+  let cartServiceMock: any;
 
   const mockUserId = 'user-uuid-1';
   const mockEmail = 'test@example.com';
@@ -61,6 +65,18 @@ describe('AuthService', () => {
       }),
     };
 
+    // Welcome email is fire-and-forget: it must resolve so the `.catch()` chain
+    // in register() doesn't blow up.
+    notificationServiceMock = {
+      sendEmail: jest.fn().mockResolvedValue(undefined),
+    };
+
+    // Guest-cart merge is also fire-and-forget; only called when a guestId is
+    // passed to login/register.
+    cartServiceMock = {
+      mergeGuestCart: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -75,6 +91,14 @@ describe('AuthService', () => {
         {
           provide: ConfigService,
           useValue: configServiceMock,
+        },
+        {
+          provide: NotificationService,
+          useValue: notificationServiceMock,
+        },
+        {
+          provide: CartService,
+          useValue: cartServiceMock,
         },
       ],
     }).compile();
@@ -179,6 +203,33 @@ describe('AuthService', () => {
 
       expect(prismaMock.user.create).toHaveBeenCalled();
     });
+
+    it('should merge the guest cart when a guestId is provided', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+      (bcrypt.hash as jest.Mock).mockResolvedValue(mockHashedPassword);
+      prismaMock.user.create.mockResolvedValue(mockUser);
+      jwtServiceMock.signAsync.mockResolvedValueOnce('access-token');
+      jwtServiceMock.signAsync.mockResolvedValueOnce('refresh-token');
+
+      await service.register(registerDto, 'guest-123');
+
+      expect(cartServiceMock.mergeGuestCart).toHaveBeenCalledWith(
+        'guest-123',
+        mockUserId,
+      );
+    });
+
+    it('should not merge any cart when no guestId is provided', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(null);
+      (bcrypt.hash as jest.Mock).mockResolvedValue(mockHashedPassword);
+      prismaMock.user.create.mockResolvedValue(mockUser);
+      jwtServiceMock.signAsync.mockResolvedValueOnce('access-token');
+      jwtServiceMock.signAsync.mockResolvedValueOnce('refresh-token');
+
+      await service.register(registerDto);
+
+      expect(cartServiceMock.mergeGuestCart).not.toHaveBeenCalled();
+    });
   });
 
   describe('login', () => {
@@ -277,6 +328,21 @@ describe('AuthService', () => {
         expect.objectContaining({
           expiresIn: '30d',
         }),
+      );
+    });
+
+    it('should merge the guest cart when a guestId is provided', async () => {
+      prismaMock.user.findUnique.mockResolvedValue(mockUser);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      prismaMock.user.update.mockResolvedValue(mockUser);
+      jwtServiceMock.signAsync.mockResolvedValueOnce('access-token');
+      jwtServiceMock.signAsync.mockResolvedValueOnce('refresh-token');
+
+      await service.login(loginDto, 'guest-abc');
+
+      expect(cartServiceMock.mergeGuestCart).toHaveBeenCalledWith(
+        'guest-abc',
+        mockUserId,
       );
     });
   });

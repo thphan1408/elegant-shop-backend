@@ -18,16 +18,9 @@ export class CreateReviewDto {
   @IsUUID()
   productId: string;
 
-  @ApiPropertyOptional({
-    description: 'User ID (nullable for anonymous reviews). If provided and user already has a review for this product, it will update the existing review.',
-    example: '123e4567-e89b-12d3-a456-426614174001',
-    nullable: true,
-  })
-  @IsOptional()
-  @ValidateIf((o) => o.userId !== null && o.userId !== undefined)
-  @IsString()
-  @IsUUID()
-  userId?: string | null;
+  // Note: userId is no longer in DTO - it's automatically taken from the authenticated user (JWT token)
+  // Only authenticated users (USER, ADMIN, MODERATOR) can create reviews
+  // Guest users cannot create reviews
 
   @ApiProperty({
     description: 'Rating from 1 to 5 stars',
@@ -49,4 +42,3 @@ export class CreateReviewDto {
   @IsString()
   comment?: string | null;
 }
-

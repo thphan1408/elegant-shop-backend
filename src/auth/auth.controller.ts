@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Body,
+  Headers,
   HttpCode,
   HttpStatus,
   UseGuards,
@@ -15,6 +16,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiExcludeEndpoint,
+  ApiHeader,
 } from '@nestjs/swagger';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -73,9 +75,40 @@ export class AuthController {
     status: 400,
     description: 'Validation error or privacy policy not accepted',
   })
-  async register(@Body() registerDto: RegisterDto) {
-    // DTO transform handles both 'name' and 'yourName' fields
-    return this.authService.register(registerDto);
+  @ApiHeader({
+    name: 'X-Guest-Id',
+    required: false,
+    description:
+      'Guest cart id used before signing up. If present, that cart is merged into the new account.',
+  })
+  async register(
+    @Body() body: any,
+    @Headers('x-guest-id') guestId?: string,
+  ) {
+    // Transform request body to handle 'name' or 'yourName'
+    const transformedBody = {
+      yourName: body.yourName || body.name,
+      username: body.username,
+      email: body.email,
+      password: body.password,
+      privacyPolicy: body.privacyPolicy,
+    };
+
+    // Transform to DTO instance and validate manually
+    const registerDto = plainToInstance(RegisterDto, transformedBody);
+    const errors = await validate(registerDto);
+
+    if (errors.length > 0) {
+      const errorMessages = errors
+        .map((error) => Object.values(error.constraints || {}))
+        .flat();
+      throw new BadRequestException({
+        message: 'Validation failed',
+        errors: errorMessages,
+      });
+    }
+
+    return this.authService.register(registerDto, guestId);
   }
 
   /**
@@ -116,7 +149,16 @@ export class AuthController {
     description: 'Invalid email/username or password',
   })
   @ApiResponse({ status: 400, description: 'Validation error' })
-  async login(@Body() body: any) {
+  @ApiHeader({
+    name: 'X-Guest-Id',
+    required: false,
+    description:
+      'Guest cart id used before logging in. If present, that cart is merged into the account.',
+  })
+  async login(
+    @Body() body: any,
+    @Headers('x-guest-id') guestId?: string,
+  ) {
     // Transform request body to handle 'email', 'username', or 'emailOrUsername'
     const transformedBody = {
       emailOrUsername: body.emailOrUsername || body.email || body.username,
@@ -138,7 +180,7 @@ export class AuthController {
       });
     }
 
-    return this.authService.login(loginDto);
+    return this.authService.login(loginDto, guestId);
   }
 
   /**
