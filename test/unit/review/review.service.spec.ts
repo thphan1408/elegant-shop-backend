@@ -5,13 +5,14 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { CreateReviewDto } from 'src/review/dto/create-review.dto';
 import { UpdateReviewDto } from 'src/review/dto/update-review.dto';
 import { QueryReviewDto } from 'src/review/dto/query-review.dto';
 import { CreateReactionDto } from 'src/review/dto/create-reaction.dto';
 import { CreateReplyDto } from 'src/review/dto/create-reply.dto';
-import { ReactionType } from '@prisma/client';
+import { ReactionType, UserRole } from '@prisma/client';
 
 describe('ReviewService - Security & Optimization Tests', () => {
   let service: ReviewService;
@@ -35,6 +36,16 @@ describe('ReviewService - Security & Optimization Tests', () => {
       id: 'product-uuid-123',
       name: 'Test Product',
     },
+  };
+
+  // Authenticated reviewer — reviews now require a logged-in USER; the id lines
+  // up with mockReview.userId so ownership checks pass.
+  const mockUser: any = {
+    id: 'user-uuid-123',
+    email: 'user@example.com',
+    userName: 'testuser',
+    role: UserRole.USER,
+    is_active: true,
   };
 
   beforeEach(async () => {
@@ -101,7 +112,7 @@ describe('ReviewService - Security & Optimization Tests', () => {
           comment: 'Test',
         };
 
-        await expect(service.createOrUpdateReview(dto)).rejects.toThrow();
+        await expect(service.createOrUpdateReview(dto, mockUser)).rejects.toThrow();
         // Prisma should reject invalid UUIDs, preventing SQL injection
       }
     });
@@ -128,7 +139,7 @@ describe('ReviewService - Security & Optimization Tests', () => {
           comment: xssPayload,
         };
 
-        const result = await service.createOrUpdateReview(dto);
+        const result = await service.createOrUpdateReview(dto, mockUser);
         // Comment should be stored as-is (sanitization should happen at API/display layer)
         // This test ensures the system doesn't crash on malicious input
         expect(result).toBeDefined();
@@ -150,7 +161,7 @@ describe('ReviewService - Security & Optimization Tests', () => {
         // Validation should happen at DTO level via class-validator
         // Service should handle edge cases gracefully
         await expect(
-          service.createOrUpdateReview(dto),
+          service.createOrUpdateReview(dto, mockUser),
         ).rejects.toThrow();
       }
     });
@@ -173,7 +184,7 @@ describe('ReviewService - Security & Optimization Tests', () => {
       prismaMock.review.findMany.mockResolvedValue([{ rating: 5 }]);
       prismaMock.product.update.mockResolvedValue({});
 
-      const result = await service.createOrUpdateReview(maliciousDto);
+      const result = await service.createOrUpdateReview(maliciousDto, mockUser);
 
       // Prisma should only accept defined schema fields
       expect(result).toBeDefined();
@@ -213,25 +224,20 @@ describe('ReviewService - Security & Optimization Tests', () => {
       // Actual authorization should be handled by controller/auth guard
     });
 
-    it('should allow anonymous reviews (userId can be null)', async () => {
-      prismaMock.product.findUnique.mockResolvedValue(mockProduct);
-      prismaMock.review.findUnique.mockResolvedValue(null);
-      prismaMock.review.create.mockResolvedValue({
-        ...mockReview,
-        userId: null,
-      });
-      prismaMock.review.findMany.mockResolvedValue([{ rating: 5 }]);
-      prismaMock.product.update.mockResolvedValue({});
+    it('should reject review creation from guest users', async () => {
+      const guestUser = { ...mockUser, role: UserRole.GUEST };
 
       const dto: CreateReviewDto = {
         productId: 'product-uuid-123',
         rating: 5,
-        comment: 'Anonymous review',
-        userId: null,
+        comment: 'Guest attempt',
       };
 
-      const result = await service.createOrUpdateReview(dto);
-      expect(result).toBeDefined();
+      // Reviews now require a logged-in USER account; guests are forbidden
+      // before any product lookup happens.
+      await expect(
+        service.createOrUpdateReview(dto, guestUser),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -251,7 +257,7 @@ describe('ReviewService - Security & Optimization Tests', () => {
 
       // Simulate 10 concurrent requests
       const promises = Array.from({ length: 10 }, () =>
-        service.createOrUpdateReview(dto),
+        service.createOrUpdateReview(dto, mockUser),
       );
 
       // Should complete without errors (rate limiting handled at API layer)
@@ -461,7 +467,7 @@ describe('ReviewService - Security & Optimization Tests', () => {
         comment: 'Great!',
       };
 
-      await service.createOrUpdateReview(dto);
+      await service.createOrUpdateReview(dto, mockUser);
 
       // Should recalculate rating
       expect(prismaMock.review.findMany).toHaveBeenCalledWith(
@@ -484,7 +490,7 @@ describe('ReviewService - Security & Optimization Tests', () => {
         comment: 'Test',
       };
 
-      await service.createOrUpdateReview(dto);
+      await service.createOrUpdateReview(dto, mockUser);
 
       // Should use transaction
       expect(prismaMock.$transaction).toHaveBeenCalled();
@@ -501,7 +507,7 @@ describe('ReviewService - Security & Optimization Tests', () => {
         comment: 'Test',
       };
 
-      await expect(service.createOrUpdateReview(dto)).rejects.toThrow(
+      await expect(service.createOrUpdateReview(dto, mockUser)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -525,7 +531,7 @@ describe('ReviewService - Security & Optimization Tests', () => {
       };
 
       // Should handle long comments (DB column should have appropriate limit)
-      const result = await service.createOrUpdateReview(dto);
+      const result = await service.createOrUpdateReview(dto, mockUser);
       expect(result).toBeDefined();
     });
 
@@ -547,7 +553,7 @@ describe('ReviewService - Security & Optimization Tests', () => {
         comment: specialChars,
       };
 
-      const result = await service.createOrUpdateReview(dto);
+      const result = await service.createOrUpdateReview(dto, mockUser);
       expect(result).toBeDefined();
     });
   });

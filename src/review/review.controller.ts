@@ -11,7 +11,13 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ReviewService } from './review.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
@@ -31,22 +37,40 @@ export class ReviewController {
   constructor(private readonly reviewService: ReviewService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Create or update a review',
     description:
-      'Create a new review or update existing one if user already reviewed this product (upsert logic). Supports anonymous reviews when userId is not provided.',
+      'Create a new review or update existing one if user already reviewed this product (upsert logic). Requires authentication - only logged in users (USER, ADMIN, MODERATOR) can review. Guest users cannot create reviews.',
   })
-  @ApiResponse({ status: 201, description: 'Review created or updated successfully' })
+  @ApiResponse({
+    status: 201,
+    description: 'Review created or updated successfully',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized - must be logged in' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Guest users cannot create reviews',
+  })
   @ApiResponse({ status: 404, description: 'Product not found' })
-  createOrUpdate(@Body() createReviewDto: CreateReviewDto) {
-    return this.reviewService.createOrUpdateReview(createReviewDto);
+  createOrUpdate(
+    @Body() createReviewDto: CreateReviewDto,
+    @CurrentUser() currentUser: User,
+  ) {
+    return this.reviewService.createOrUpdateReview(
+      createReviewDto,
+      currentUser,
+    );
   }
 
   @Get()
   @Public()
   @ApiOperation({
     summary: 'Get all reviews',
-    description: 'Get paginated list of reviews with optional filters by productId or userId',
+    description:
+      'Get paginated list of reviews with optional filters by productId or userId',
   })
   @ApiResponse({ status: 200, description: 'List of reviews' })
   findAll(@Query() query: QueryReviewDto) {
@@ -78,11 +102,15 @@ export class ReviewController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Update review',
-    description: 'Update an existing review by ID. Users can only update their own reviews, admins can update any.',
+    description:
+      'Update an existing review by ID. Users can only update their own reviews, admins can update any.',
   })
   @ApiResponse({ status: 200, description: 'Review updated successfully' })
   @ApiResponse({ status: 404, description: 'Review not found' })
-  @ApiResponse({ status: 403, description: 'Forbidden - can only update your own reviews' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - can only update your own reviews',
+  })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateReviewDto: UpdateReviewDto,
@@ -97,11 +125,15 @@ export class ReviewController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Delete review',
-    description: 'Delete a review by ID. Admins can delete any review, users can only delete their own. Product rating will be recalculated automatically.',
+    description:
+      'Delete a review by ID. Admins can delete any review, users can only delete their own. Product rating will be recalculated automatically.',
   })
   @ApiResponse({ status: 200, description: 'Review deleted successfully' })
   @ApiResponse({ status: 404, description: 'Review not found' })
-  @ApiResponse({ status: 403, description: 'Forbidden - can only delete your own reviews' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - can only delete your own reviews',
+  })
   remove(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() currentUser?: User,
@@ -115,20 +147,39 @@ export class ReviewController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute per user (strict rate limit)
   @ApiOperation({
-    summary: 'React to a review',
+    summary: 'React to a review (toggle behavior)',
     description:
-      'Create or update a reaction (like/dislike) to a review. Requires authentication. If user already reacted, it will update the existing reaction.',
+      'Create, update, or toggle a reaction (like/dislike) to a review. Requires authentication. ' +
+      'Toggle behavior: If clicking the same reaction type again (like → like or dislike → dislike), it will remove the reaction (toggle off). ' +
+      'If clicking different reaction type (like → dislike or dislike → like), it will switch the reaction. ' +
+      'Rate limited: 10 requests per minute per user. Debounced: 300ms between requests.',
   })
-  @ApiResponse({ status: 201, description: 'Reaction created or updated successfully' })
+  @ApiResponse({
+    status: 201,
+    description: 'Reaction created, updated, or removed successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Too many requests too quickly (debounced)',
+  })
   @ApiResponse({ status: 404, description: 'Review not found' })
   @ApiResponse({ status: 401, description: 'Unauthorized - must be logged in' })
+  @ApiResponse({
+    status: 429,
+    description: 'Too Many Requests - rate limit exceeded',
+  })
   reactToReview(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() createReactionDto: CreateReactionDto,
     @CurrentUser() currentUser?: User,
   ) {
-    return this.reviewService.createOrUpdateReaction(id, createReactionDto, currentUser);
+    return this.reviewService.createOrUpdateReaction(
+      id,
+      createReactionDto,
+      currentUser,
+    );
   }
 
   @Delete(':id/react')
@@ -169,7 +220,8 @@ export class ReviewController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Create a reply to a review',
-    description: 'Create a reply to a review. Requires authentication. Can be a direct reply or a nested reply to another reply.',
+    description:
+      'Create a reply to a review. Requires authentication. Can be a direct reply or a nested reply to another reply.',
   })
   @ApiResponse({ status: 201, description: 'Reply created successfully' })
   @ApiResponse({ status: 404, description: 'Review or parent reply not found' })
@@ -199,11 +251,15 @@ export class ReviewController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Update a reply',
-    description: 'Update a reply by ID. Users can only update their own replies, admins can update any.',
+    description:
+      'Update a reply by ID. Users can only update their own replies, admins can update any.',
   })
   @ApiResponse({ status: 200, description: 'Reply updated successfully' })
   @ApiResponse({ status: 404, description: 'Reply not found' })
-  @ApiResponse({ status: 403, description: 'Forbidden - can only update your own replies' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - can only update your own replies',
+  })
   updateReply(
     @Param('replyId', ParseUUIDPipe) replyId: string,
     @Body() updateReplyDto: UpdateReplyDto,
@@ -218,11 +274,15 @@ export class ReviewController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Delete a reply',
-    description: 'Delete a reply by ID. Admins can delete any reply, users can only delete their own. Nested replies will be cascade deleted.',
+    description:
+      'Delete a reply by ID. Admins can delete any reply, users can only delete their own. Nested replies will be cascade deleted.',
   })
   @ApiResponse({ status: 200, description: 'Reply deleted successfully' })
   @ApiResponse({ status: 404, description: 'Reply not found' })
-  @ApiResponse({ status: 403, description: 'Forbidden - can only delete your own replies' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - can only delete your own replies',
+  })
   removeReply(
     @Param('replyId', ParseUUIDPipe) replyId: string,
     @CurrentUser() currentUser?: User,
@@ -230,4 +290,3 @@ export class ReviewController {
     return this.reviewService.removeReply(replyId, currentUser);
   }
 }
-
