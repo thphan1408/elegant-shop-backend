@@ -7,7 +7,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
-import type { Cart, User } from '@prisma/client';
+import type { Cart } from '@prisma/client';
 
 const CART_ITEM_INCLUDE = {
   variant: {
@@ -297,18 +297,18 @@ export class CartService {
    * and capped at current stock. The guest cart is deleted afterward.
    * @throws BadRequestException if requested quantity exceeds stock isn't hit (capped instead)
    */
-  async mergeGuestCart(guestId: string, currentUser: User): Promise<CartView> {
+  async mergeGuestCart(guestId: string, userId: string): Promise<CartView> {
     const guestCart = await this.prismaService.cart.findUnique({
       where: { guestId },
       include: { items: { include: { variant: true } } },
     });
 
     if (!guestCart || guestCart.items.length === 0) {
-      const userCart = await this.resolveCart(currentUser.id, undefined, false);
+      const userCart = await this.resolveCart(userId, undefined, false);
       return this.toCartView(userCart);
     }
 
-    const userCart = await this.resolveCart(currentUser.id, undefined, true);
+    const userCart = await this.resolveCart(userId, undefined, true);
     if (!userCart) {
       throw new BadRequestException('Unable to resolve user cart');
     }

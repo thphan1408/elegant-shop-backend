@@ -7,11 +7,13 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { NotificationModule } from 'src/notification/notification.module';
+import { CartModule } from 'src/cart/cart.module';
 
 @Module({
   imports: [
     PrismaModule,
     NotificationModule,
+    CartModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

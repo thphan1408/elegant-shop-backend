@@ -356,7 +356,7 @@ describe('CartService', () => {
         .mockResolvedValueOnce(null) // guest cart lookup
         .mockResolvedValueOnce(null); // user cart lookup in resolveCart
 
-      const result = await service.mergeGuestCart(mockGuestId, mockUser as any);
+      const result = await service.mergeGuestCart(mockGuestId, mockUser.id);
 
       expect(prismaMock.cart.delete).not.toHaveBeenCalled();
       expect(result.items).toEqual([]);
@@ -391,7 +391,7 @@ describe('CartService', () => {
         { ...mockCartItem, quantity: 5 },
       ]);
 
-      await service.mergeGuestCart(mockGuestId, mockUser as any);
+      await service.mergeGuestCart(mockGuestId, mockUser.id);
 
       // existing 2 + guest 3 = 5, within stock of 10
       expect(prismaMock.cartItem.upsert).toHaveBeenCalledWith(
@@ -432,7 +432,7 @@ describe('CartService', () => {
         { ...mockCartItem, quantity: 4 },
       ]);
 
-      await service.mergeGuestCart(mockGuestId, mockUser as any);
+      await service.mergeGuestCart(mockGuestId, mockUser.id);
 
       // existing 2 + guest 3 = 5, but stock is only 4 -> capped
       expect(prismaMock.cartItem.upsert).toHaveBeenCalledWith(

@@ -15,6 +15,7 @@ import { ConfigService } from '@nestjs/config';
 import { User, UserRole } from '@prisma/client';
 import { NotificationService } from 'src/notification/notification.service';
 import { EmailTemplateType } from 'src/notification/dto/send-email.dto';
+import { CartService } from 'src/cart/cart.service';
 
 export interface JwtPayload {
   sub: string; // User ID
@@ -45,12 +46,38 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly notificationService: NotificationService,
+    private readonly cartService: CartService,
   ) {}
+
+  /**
+   * Merge a guest cart (identified by the X-Guest-Id the client used before
+   * authenticating) into the freshly authenticated user's cart.
+   * Fire-and-forget: a merge failure must never break login/register — the
+   * client can always re-fetch the cart via GET /cart afterward.
+   * @param userId - The authenticated user's id
+   * @param guestId - Guest cart id, if the client sent one (no-op when absent)
+   */
+  private mergeGuestCartAfterAuth(userId: string, guestId?: string): void {
+    if (!guestId) {
+      return;
+    }
+
+    void this.cartService
+      .mergeGuestCart(guestId, userId)
+      .catch((error: Error) => {
+        this.logger.warn(
+          `Failed to merge guest cart ${guestId} for user ${userId}: ${error.message}`,
+        );
+      });
+  }
 
   /**
    * Register a new user
    */
-  async register(registerDto: RegisterDto): Promise<AuthResponse> {
+  async register(
+    registerDto: RegisterDto,
+    guestId?: string,
+  ): Promise<AuthResponse> {
     // Validate privacy policy acceptance
     if (!registerDto.privacyPolicy) {
       throw new BadRequestException(
@@ -120,6 +147,9 @@ export class AuthService {
         );
       });
 
+    // Carry over the anonymous cart the user built before signing up.
+    this.mergeGuestCartAfterAuth(user.id, guestId);
+
     return {
       user: {
         id: user.id,
@@ -135,7 +165,7 @@ export class AuthService {
   /**
    * Login user (by email or username)
    */
-  async login(loginDto: LoginDto): Promise<AuthResponse> {
+  async login(loginDto: LoginDto, guestId?: string): Promise<AuthResponse> {
     // Try to find user by email first, then by username
     let user = await this.prismaService.user.findUnique({
       where: { email: loginDto.emailOrUsername },
@@ -182,6 +212,9 @@ export class AuthService {
       user.role,
       loginDto.rememberMe,
     );
+
+    // Carry over the anonymous cart the user built before logging in.
+    this.mergeGuestCartAfterAuth(user.id, guestId);
 
     return {
       user: {

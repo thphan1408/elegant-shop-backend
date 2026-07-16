@@ -148,6 +148,6 @@ export class CartController {
   @ApiResponse({ status: 201, description: 'Merged cart returned' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   merge(@Body() dto: MergeCartDto, @CurrentUser() currentUser: User) {
-    return this.cartService.mergeGuestCart(dto.guestId, currentUser);
+    return this.cartService.mergeGuestCart(dto.guestId, currentUser.id);
   }
 }
