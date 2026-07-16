@@ -17,6 +17,7 @@ import { FAQModule } from './faq/faq.module';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { OrderModule } from './order/order.module';
+import { CartModule } from './cart/cart.module';
 import { CommonModule } from './common/common.module';
 import { NotificationModule } from './notification/notification.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -40,6 +41,7 @@ import { Reflector } from '@nestjs/core';
     AuthModule,
     UserModule,
     OrderModule,
+    CartModule,
     NotificationModule,
   ],
   controllers: [AppController],

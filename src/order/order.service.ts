@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { CheckoutDto } from './dto/checkout.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { QueryOrderDto } from './dto/query-order.dto';
 import { OrderStatus, PaymentMethod, UserRole } from '@prisma/client';
@@ -14,6 +15,7 @@ import { Prisma } from '@prisma/client';
 import type { User } from '@prisma/client';
 import { NotificationService } from 'src/notification/notification.service';
 import { EmailTemplateType } from 'src/notification/dto/send-email.dto';
+import { CartService } from 'src/cart/cart.service';
 
 /**
  * Tập con các trường của Order mà các email cần đến.
@@ -37,7 +39,48 @@ export class OrderService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly cartService: CartService,
   ) {}
+
+  /**
+   * Checkout: create an order from the caller's server-side cart, then clear it.
+   * Items come from the cart (not the client), so the request only carries
+   * shipping/payment/guest info. Delegates to create() for stock re-validation,
+   * price snapshotting, stock decrement and the confirmation email.
+   * @param dto - Shipping/payment/guest data (no items)
+   * @param currentUser - Authenticated user, if any
+   * @param guestId - Guest cart id (X-Guest-Id header) for anonymous checkout
+   * @throws BadRequestException if the cart is empty
+   */
+  async checkout(dto: CheckoutDto, currentUser?: User, guestId?: string) {
+    const cart = await this.cartService.getCart(currentUser?.id, guestId);
+
+    if (cart.items.length === 0) {
+      throw new BadRequestException('Your cart is empty');
+    }
+
+    const items = cart.items.map((item) => ({
+      variantId: item.variantId,
+      quantity: item.quantity,
+    }));
+
+    // Reuse the battle-tested create(): it re-checks stock inside a transaction,
+    // so anything sold out since the item was added to the cart fails here and
+    // no order (and no cart clear) happens — the customer keeps their cart.
+    const order = await this.create({ ...dto, items }, currentUser);
+
+    // Order committed successfully -> empty the cart. Best-effort: a failure to
+    // clear must not fail the response, since the order already exists.
+    try {
+      await this.cartService.clearCart(currentUser?.id, guestId);
+    } catch (error) {
+      this.logger.warn(
+        `Order ${order.orderNumber} placed but failed to clear cart: ${(error as Error).message}`,
+      );
+    }
+
+    return order;
+  }
 
   /**
    * Generate unique order number
