@@ -169,114 +169,15 @@ Backend API cho hệ thống e-commerce được xây dựng với NestJS, Prism
 
 ## 📦 Cài đặt
 
-### Yêu cầu hệ thống
+Hướng dẫn dựng lại toàn bộ dự án từ máy trắng — cả backend lẫn frontend — nằm ở **[SETUP.md](./SETUP.md)**.
 
-- Node.js >= 18.x
-- PostgreSQL >= 12.x
-- npm >= 9.x hoặc yarn >= 1.x
-
-### Bước 1: Clone repository
-
-```bash
-git clone <repository-url>
-cd elegant-shop-backend
-```
-
-### Bước 2: Cài đặt dependencies
-
-```bash
-npm install
-```
-
-### Bước 3: Cấu hình Database
-
-1. Tạo file `.env` trong thư mục gốc:
-
-```env
-# Database
-DATABASE_URL="postgresql://username:password@localhost:5432/elegant_shop?schema=public"
-
-# Application
-NODE_ENV=development
-PORT=8080
-
-# Security
-JWT_SECRET=your-secret-key-change-in-production
-JWT_EXPIRES_IN=1d
-JWT_REFRESH_SECRET=your-refresh-secret-key (optional)
-JWT_REFRESH_EXPIRES_IN=7d
-
-# Cloudinary (for file uploads)
-CLOUDINARY_CLOUD_NAME=your-cloud-name
-CLOUDINARY_API_KEY=your-api-key
-CLOUDINARY_API_SECRET=your-api-secret
-
-# Admin Account (optional - for auto-creation on first start)
-DEFAULT_ADMIN_EMAIL=admin@elegantshop.com
-DEFAULT_ADMIN_PASSWORD=Admin@123456
-DEFAULT_ADMIN_USERNAME=admin
-```
-
-2. Chạy migrations:
-
-```bash
-npm run migrate:dev
-```
-
-3. Generate Prisma Client:
-
-```bash
-npm run prisma:generate
-```
-
-### Bước 4: Khởi động ứng dụng lần đầu
-
-Khi chạy ứng dụng lần đầu tiên, hệ thống sẽ **tự động tạo admin account** nếu các environment variables được cấu hình trong file `.env`:
-
-```env
-DEFAULT_ADMIN_EMAIL=your-admin-email@example.com
-DEFAULT_ADMIN_PASSWORD=your-secure-password
-DEFAULT_ADMIN_USERNAME=your-admin-username
-```
-
-⚠️ **Lưu ý**:
-
-- Nếu các environment variables này **không được set**, hệ thống sẽ **bỏ qua việc tạo admin account** (không có hardcode values)
-- Sau khi set env vars và khởi động app, kiểm tra console log để xem thông tin đăng nhập
-- Hãy đổi mật khẩu sau lần đăng nhập đầu tiên!
-
-### Bước 5: Chạy dự án
-
-```bash
-# Development mode
-npm run start:dev
-
-# Production mode
-npm run build
-npm run start:prod
-```
-
-**Lưu ý**: Khi khởi động lần đầu, hệ thống sẽ tự động tạo admin account nếu chưa có. Xem log để lấy thông tin đăng nhập mặc định.
+Danh sách biến môi trường kèm giải thích từng biến: xem **[.env.example](./.env.example)**.
 
 ## ⚙️ Cấu hình
 
 ### Environment Variables
 
-| Variable                 | Mô tả                                     | Mặc định    | Required |
-| ------------------------ | ----------------------------------------- | ----------- | -------- |
-| `DATABASE_URL`           | PostgreSQL connection string              | -           | ✅       |
-| `NODE_ENV`               | Environment (development/production/test) | development | ❌       |
-| `PORT`                   | Server port                               | 8080        | ❌       |
-| `JWT_SECRET`             | Secret key cho JWT                        | -           | ✅       |
-| `JWT_EXPIRES_IN`         | Access token expiration time              | 1d          | ❌       |
-| `JWT_REFRESH_SECRET`     | Refresh token secret (optional)           | JWT_SECRET  | ❌       |
-| `JWT_REFRESH_EXPIRES_IN` | Refresh token expiration time             | 7d          | ❌       |
-| `CLOUDINARY_CLOUD_NAME`  | Cloudinary cloud name                     | -           | ✅       |
-| `CLOUDINARY_API_KEY`     | Cloudinary API key                        | -           | ✅       |
-| `CLOUDINARY_API_SECRET`  | Cloudinary API secret                     | -           | ✅       |
-| `DEFAULT_ADMIN_EMAIL`    | Email cho admin account tự động tạo       | -           | ❌       |
-| `DEFAULT_ADMIN_PASSWORD` | Password cho admin account tự động tạo    | -           | ❌       |
-| `DEFAULT_ADMIN_USERNAME` | Username cho admin account tự động tạo    | -           | ❌       |
+Danh sách đầy đủ, kèm giải thích từng biến và đánh dấu biến nào bắt buộc: xem **[.env.example](./.env.example)**. Nguồn sự thật là schema Joi trong `src/configs/config.module.ts` — app từ chối khởi động nếu thiếu biến bắt buộc.
 
 ### Database Configuration
 
