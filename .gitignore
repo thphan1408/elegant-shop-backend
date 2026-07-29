@@ -57,4 +57,6 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 /generated/prisma
 
-/docs
+# docs/ ĐƯỢC commit — tài liệu phải sống sót khi clone lại máy khác.
+# Chỉ loại trừ output tạm của phiên làm việc:
+/docs/scratch/
